@@ -147,12 +147,6 @@ cliente sin reconstruirlo desde el historial.
 
 ---
 
-## En producción
-
-![Historial de ejecuciones](docs/ejecuciones.png)
-
----
-
 ## Stack
 
 n8n self-hosted (Docker, VPS) · Google Gemini · YCloud (WhatsApp Business API) ·
