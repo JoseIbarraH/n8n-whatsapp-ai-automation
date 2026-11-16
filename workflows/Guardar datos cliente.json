@@ -1,0 +1,5726 @@
+{
+  "name": "Guardar datos cliente",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "cliente_id"
+            },
+            {
+              "name": "telefono"
+            },
+            {
+              "name": "nombre"
+            },
+            {
+              "name": "cp"
+            },
+            {
+              "name": "direccion"
+            },
+            {
+              "name": "tipo_cliente"
+            }
+          ]
+        }
+      },
+      "id": "b3393f2c-0205-4ae3-ad8e-795abbe15d17",
+      "typeVersion": 1.1,
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -4416,
+        -688
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "estado_raw",
+        "key": "=estado:{{ ($json.telefono || $json.cliente_id || '').toString().replace(/[^0-9]/g,'') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -4208,
+        -688
+      ],
+      "id": "90bceec9-d6bc-4f19-8e4f-0817b3a78a08",
+      "name": "Leer estado",
+      "credentials": {
+        "redis": {
+          "id": "r33nfq05Rm3vHp9q",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $('Entrada').item.json;\nconst cp = String(t.cp || '').replace(/[^0-9]/g,'').slice(0,5);\nreturn [{ json: { cp_clean: cp } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4016,
+        -688
+      ],
+      "id": "41ce8dc8-bda0-4a1b-8876-5ff3f1e894aa",
+      "name": "Limpiar cp"
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $('Entrada').item.json;\nconst cpc = $('Limpiar cp').first().json.cp_clean;\nconst v = $(\"Call 'Validar CP'\").first().json;\nconst cpValido = v && v.valido === true;\nconst municipio = cpValido ? (v.municipio || '') : '';\n\nconst raw = $('Leer estado').first().json.estado_raw;\nlet estado = raw ? JSON.parse(raw) : { cliente:{\n  telefono:t.telefono,\n  nombre:'',\n  ciudad:'',\n  cp:'',\n  direccion:'',\n  tipo_cliente:''\n}, productos:[], fotos:[], updated_at:0 };\n\nif (!estado.cliente) estado.cliente = { telefono:t.telefono, nombre:'', ciudad:'', cp:'', direccion:'', tipo_cliente:'' };\nconst set = (k,val) => { if (val !== undefined && val !== null && String(val).trim() !== '') estado.cliente[k] = String(val).trim(); };\nset('nombre', t.nombre); set('direccion', t.direccion); set('tipo_cliente', t.tipo_cliente);\nif (cpValido) { estado.cliente.cp = cpc; estado.cliente.ciudad = municipio; }\n\nconst c = estado.cliente;\nconst cpDadoInvalido = (String(t.cp||'').trim() !== '' && !cpValido);\nconst faltan = [];\nif (!c.nombre)       faltan.push('nombre y apellido');\nif (!c.direccion)    faltan.push('dirección de la obra (calle y número)');\nif (!c.cp)           faltan.push(cpDadoInvalido ? 'un código postal válido (5 dígitos)' : 'código postal');\nif (!c.tipo_cliente) faltan.push('tipo de cliente');\nconst completo = faltan.length === 0;\nif (completo) estado.fase_datos = false;\nestado.updated_at = Date.now();\n\nconst resumen =\n  '• Nombre: ' + (c.nombre || '-') + '\\n' +\n  '• Dirección: ' + (c.direccion || '-') + '\\n' +\n  '• CP: ' + (c.cp || '-') + (c.ciudad ? ' (' + c.ciudad + ')' : '') + '\\n' +\n  '• Tipo: ' + (c.tipo_cliente || '-');\n\nconst productos = estado.productos || [];\nconst listaProd = productos.map(p => `${p.producto}${p.cantidad && p.cantidad !== '1' ? ' x' + p.cantidad : ''}`).join(', ');\nconst _pfx = String(t.telefono||'').replace(/[^0-9]/g,'').endsWith('573166083511') ? '[PRUEBA] ' : '';\nconst _dir = [c.direccion, [c.cp,c.ciudad].filter(Boolean).join(' ')].filter(Boolean).join(', ');\nconst nombre_lead = _pfx + (c.nombre || 'Cliente') + (_dir ? ' \\u2014 ' + _dir : (listaProd ? ' \\u2014 ' + listaProd : ''));\n\nreturn [{ json: { cliente_id:t.cliente_id, telefono:t.telefono, estado:JSON.stringify(estado), completo, faltan, nombre:c.nombre||'', resumen, lead_id: estado.lead_id || null, nombre_lead, cp_cliente: estado.cliente.cp||'', direccion_cliente: estado.cliente.direccion||'', completo_geo: completo } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3632,
+        -688
+      ],
+      "id": "0943695d-a5f0-4308-9568-9559573a5564",
+      "name": "Guardar datos"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=estado:{{ ($json.telefono || $json.cliente_id || '').toString().replace(/[^0-9]/g,'') }}",
+        "value": "={{ $json.estado }}",
+        "expire": true,
+        "ttl": 3600
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3440,
+        -688
+      ],
+      "id": "4c492a4f-36f2-477c-b2ff-2580aed92b85",
+      "name": "Guardar estado",
+      "credentials": {
+        "redis": {
+          "id": "r33nfq05Rm3vHp9q",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8661b188-b290-4364-9ab5-fd1ab4a4e74d",
+              "leftValue": "={{ $('Guardar datos').item.json.completo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3248,
+        -688
+      ],
+      "id": "d8be58e8-e171-4c75-917f-222d340e4d0f",
+      "name": "¿Completo?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ycloud.com/v2/whatsapp/messages/sendDirectly",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"from\": \"34617074470\",\n  \"to\": $('Guardar datos').item.json.telefono,\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"Estos son tus datos:\\n\\n\" + $('Guardar datos').item.json.resumen + \"\\n\\n¿Todo correcto?\" },\n    \"action\": { \"buttons\": [\n      { \"type\": \"reply\", \"reply\": { \"id\": \"datos_editar\",    \"title\": \"Editar\" } },\n      { \"type\": \"reply\", \"reply\": { \"id\": \"datos_continuar\", \"title\": \"Continuar\" } },\n      { \"type\": \"reply\", \"reply\": { \"id\": \"datos_cancelar\",  \"title\": \"Cancelar\" } }\n    ] }\n  }\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1872,
+        -752
+      ],
+      "id": "d4fbbbb8-0730-4e94-97f2-c5b7a63ae42b",
+      "name": "Aviso cierre",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RKFsCFZ5pPOZk5oQ",
+          "name": "YCloud API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3c7ffb9f-5936-496b-ba9f-ee6e83babba1",
+              "name": "respuesta",
+              "value": "={{ $('Etapa lead').first().json.respuesta_med ? $('Etapa lead').first().json.respuesta_med : ($('Etapa lead').first().json.en_captacion === false ? 'Datos guardados. NO se ha enviado ningún mensaje al cliente: responde tú. Confirma en una frase corta y continúa con el paso en curso (si estás gestionando una medición, pregunta si prefiere horario diurno o por la tarde, o si ya eligió turno llama a ver_disponibilidad_medicion). Nunca escribas LISTO.' : '[ACCION_COMPLETADA] Ya se confirmó al cliente que tienes todos sus datos. Tu turno terminó. Responde EXACTAMENTE con la palabra: LISTO') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1680,
+        -752
+      ],
+      "id": "f16bfaf9-e73a-48af-a335-ee1c4d19ab6e",
+      "name": "Respuesta OK"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7fdd8454-76af-40c6-8707-a19a2b97b684",
+              "name": "respuesta",
+              "value": "=Datos guardados. Todavía falta: {{ $('Guardar datos').item.json.faltan.join(', ') }}. Pídele al cliente SOLO eso, sin repetir lo que ya dio y sin pedir fotos. No preguntes en este mensaje por horario (diurno/tarde) ni por fechas de visita.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3056,
+        -592
+      ],
+      "id": "40672baf-bf43-401a-b6db-04cabea3d84b",
+      "name": "Respuesta faltan"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "yv0nYI6Vl5fL5QMn",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/yv0nYI6Vl5fL5QMn",
+          "cachedResultName": "Validar CP"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "cp": "={{ $('Limpiar cp').item.json.cp_clean }}"
+          },
+          "matchingColumns": [
+            "cp"
+          ],
+          "schema": [
+            {
+              "id": "cp",
+              "displayName": "cp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -3824,
+        -688
+      ],
+      "id": "9a6fad54-dcb1-4c9a-a6b6-6f6641c8d5e5",
+      "name": "Call 'Validar CP'"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst pf = $('Partner id final').item.json;\nconst g = $('Guardar datos').item.json;\nlet estado = {};\ntry { estado = JSON.parse(g.estado || '{}'); } catch(e) {}\nconst cli = estado.cliente || {};\nconst ODOO={url:'https://selfa2.odoo.com',db:'selfa2',uid:2,pwd:'17bfcdc987742e11fe6a5eaacd36d25da2174e11'};\nasync function odooCall(ctx,model,method,args,kwargs){\n  const r=await ctx.helpers.httpRequest({method:'POST',url:ODOO.url+'/jsonrpc',headers:{'Content-Type':'application/json'},\n    body:{jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',args:[ODOO.db,ODOO.uid,ODOO.pwd,model,method,args,kwargs||{}]}},json:true});\n  if(r.error) throw new Error(JSON.stringify(r.error));\n  return r.result;\n}\nconst tel = g.telefono || cli.telefono || '';\n// tipo_cliente -> x_tipo_cliente (b2c particular / b2b constructor)\nconst tc = (cli.tipo_cliente||'').toLowerCase();\nconst x_tipo = (tc.includes('constru')||tc.includes('empresa')||tc.includes('b2b')) ? 'b2b' : 'b2c';\n// campos comunes\nconst vals = {\n  name: pf.nombre_lead,\n  contact_name: pf.nombre,\n  partner_name: g.nombre,\n  street: g.direccion_cliente || cli.direccion || '',\n  zip: g.cp_cliente || cli.cp || '',\n  city: cli.ciudad || '',\n  phone: tel,\n  x_movil_cliente: tel,\n  x_tipo_cliente: x_tipo,\n  active: true\n};\nif (pf.partner_id) vals.partner_id = pf.partner_id;\n\nlet leadId = pf.lead_id ? parseInt(pf.lead_id) : null;\n// verificar que el lead_id sea válido y activo; si no, buscar por teléfono\nif (leadId) {\n  const ex = await odooCall(this,'crm.lead','search',[[['id','=',leadId]]],{context:{active_test:false}});\n  if (!ex || !ex.length) leadId = null;\n}\nif (!leadId && tel) {\n  const found = await odooCall(this,'crm.lead','search',[['|',['phone','ilike',tel],['phone_sanitized','ilike',tel],['active','=',true]]],{limit:1,order:'id desc'});\n  if (found && found.length) leadId = found[0];\n}\nlet creado = false;\nif (leadId) {\n  await odooCall(this,'crm.lead','write',[[leadId], vals]);\n} else {\n  vals.type = 'opportunity';\n  vals.stage_id = 29; // Solicitud de Presupuesto\n  leadId = await odooCall(this,'crm.lead','create',[vals]);\n  creado = true;\n}\n// guardar lead_id de vuelta en el estado Redis para futuros pasos\nestado.lead_id = leadId;\nreturn [{ json: { lead_id: leadId, creado, nombre_lead: pf.nombre_lead, estado: JSON.stringify(estado), telefono: tel, cliente_id: g.cliente_id } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2064,
+        -752
+      ],
+      "id": "a6fbae32-5620-4190-86b2-01c2d7a6b807",
+      "name": "Actualizar nombre lead",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "authentication": "odooApi",
+        "resource": "custom",
+        "customResource": {
+          "__rl": true,
+          "value": "=res.partner",
+          "mode": "id"
+        },
+        "limit": 1,
+        "options": {},
+        "filters": {
+          "filter": [
+            {
+              "fieldName": "phone",
+              "value": "={{ $('Guardar datos').item.json.telefono }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.odoo",
+      "typeVersion": 2,
+      "position": [
+        -3056,
+        -752
+      ],
+      "id": "821f4a3c-45bc-4f7f-b7c1-03fe94a939b3",
+      "name": "Buscar contacto",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true,
+      "credentials": {
+        "odooApi": {
+          "id": "YI5Tu5VymKfefkQA",
+          "name": "Odoo account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const found = $input.all();\nconst partner = (found.length && found[0].json && found[0].json.id) ? found[0].json.id : null;\nconst g = $('Guardar datos').first().json;\nreturn [{ json: { partner_id: partner, existe: partner !== null, nombre: g.nombre, telefono: g.telefono, lead_id: g.lead_id, nombre_lead: g.nombre_lead } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2848,
+        -752
+      ],
+      "id": "302f60c0-f913-4dbc-b95e-28727acda6d5",
+      "name": "¿Contacto existe?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d07a96f8-2809-42e8-8e31-507fe86150b8",
+              "leftValue": "={{ $('¿Contacto existe?').item.json.existe }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2640,
+        -752
+      ],
+      "id": "d5ef6010-a3f3-428c-b6e8-5047b6862bef",
+      "name": "¿Existe partner?"
+    },
+    {
+      "parameters": {
+        "authentication": "odooApi",
+        "resource": "custom",
+        "operation": "create",
+        "customResource": {
+          "__rl": true,
+          "value": "=res.partner",
+          "mode": "id"
+        },
+        "fieldsToSend": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ '+' + $('¿Contacto existe?').item.json.telefono }}",
+            "name": "={{ $('¿Contacto existe?').item.json.nombre }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "meeting_count",
+              "displayName": "# Meetings",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "supplier_invoice_count",
+              "displayName": "# Vendor Bills",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "account_move_count",
+              "displayName": "Account Move Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "property_account_payable_id",
+              "displayName": "Account Payable",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "property_account_receivable_id",
+              "displayName": "Account Receivable",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "account_represented_company_ids",
+              "displayName": "Account Represented Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "message_needaction",
+              "displayName": "Action Needed",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "active",
+              "displayName": "Active",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "active_lang_count",
+              "displayName": "Active Lang Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "activity_ids",
+              "displayName": "Activities",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "activity_exception_decoration",
+              "displayName": "Activity Exception Decoration",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Alert",
+                  "value": "warning"
+                },
+                {
+                  "name": "Error",
+                  "value": "danger"
+                }
+              ]
+            },
+            {
+              "id": "activity_plans_ids",
+              "displayName": "Activity Plans",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "activity_state",
+              "displayName": "Activity State",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Overdue",
+                  "value": "overdue"
+                },
+                {
+                  "name": "Today",
+                  "value": "today"
+                },
+                {
+                  "name": "Planned",
+                  "value": "planned"
+                }
+              ]
+            },
+            {
+              "id": "activity_type_icon",
+              "displayName": "Activity Type Icon",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "type",
+              "displayName": "Address Type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Contact",
+                  "value": "contact"
+                },
+                {
+                  "name": "Invoice",
+                  "value": "invoice"
+                },
+                {
+                  "name": "Delivery",
+                  "value": "delivery"
+                },
+                {
+                  "name": "FACe Center",
+                  "value": "facturae_ac"
+                },
+                {
+                  "name": "Other",
+                  "value": "other"
+                }
+              ]
+            },
+            {
+              "id": "type_address_label",
+              "displayName": "Address Type Description",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "agent_ids",
+              "displayName": "Agent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "message_attachment_count",
+              "displayName": "Attachment Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "autopost_bills",
+              "displayName": "Auto-post bills",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Always",
+                  "value": "always"
+                },
+                {
+                  "name": "Ask after 3 validations without edits",
+                  "value": "ask"
+                },
+                {
+                  "name": "Never",
+                  "value": "never"
+                }
+              ]
+            },
+            {
+              "id": "available_invoice_template_pdf_report_ids",
+              "displayName": "Available Invoice Template Pdf Report",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "available_peppol_eas",
+              "displayName": "Available Peppol Eas",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "available_peppol_edi_formats",
+              "displayName": "Available Peppol Edi Formats",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "available_peppol_sending_methods",
+              "displayName": "Available Peppol Sending Methods",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "avatar_1920",
+              "displayName": "Avatar",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "avatar_1024",
+              "displayName": "Avatar 1024",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "avatar_128",
+              "displayName": "Avatar 128",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "avatar_256",
+              "displayName": "Avatar 256",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "avatar_512",
+              "displayName": "Avatar 512",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "bank_account_count",
+              "displayName": "Bank",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "bank_ids",
+              "displayName": "Banks",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "barcode",
+              "displayName": "Barcode",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "is_blacklisted",
+              "displayName": "Blacklist",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "phone_blacklisted",
+              "displayName": "Blacklisted Phone is Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "message_bounce",
+              "displayName": "Bounce",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "channel_member_ids",
+              "displayName": "Channel Member",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "channel_ids",
+              "displayName": "Channels",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "city",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "l10n_es_edi_facturae_ac_center_code",
+              "displayName": "Code",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "x_codigo_proveedor",
+              "displayName": "Código Proveedor",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "color",
+              "displayName": "Color Index",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "commercial_partner_id",
+              "displayName": "Commercial Entity",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "ref_company_ids",
+              "displayName": "Companies that refers to partner",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "company_id",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "company_registry",
+              "displayName": "Company ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "company_registry_label",
+              "displayName": "Company ID Label",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "commercial_company_name",
+              "displayName": "Company Name Entity",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "company_registry_placeholder",
+              "displayName": "Company Registry Placeholder",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "contact_address",
+              "displayName": "Complete Address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "complete_name",
+              "displayName": "Complete Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "contact_address_complete",
+              "displayName": "Contact Address Complete",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "country_id",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "country_code",
+              "displayName": "Country Code",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "create_uid",
+              "displayName": "Created by",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "create_date",
+              "displayName": "Created on",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "dateTime"
+            },
+            {
+              "id": "credit_limit",
+              "displayName": "Credit Limit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "credit_to_invoice",
+              "displayName": "Credit To Invoice",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "currency_id",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "property_payment_term_id",
+              "displayName": "Customer Payment Terms",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "customer_rank",
+              "displayName": "Customer Rank",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "days_sales_outstanding",
+              "displayName": "Days Sales Outstanding (DSO)",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "trust",
+              "displayName": "Degree of trust you have in this debtor",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Good Debtor",
+                  "value": "good"
+                },
+                {
+                  "name": "Normal Debtor",
+                  "value": "normal"
+                },
+                {
+                  "name": "Bad Debtor",
+                  "value": "bad"
+                }
+              ]
+            },
+            {
+              "id": "display_invoice_edi_format",
+              "displayName": "Display Invoice Edi Format",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "display_invoice_template_pdf_report_id",
+              "displayName": "Display Invoice Template Pdf Report",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "display_name",
+              "displayName": "Display Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "duplicate_bank_partner_ids",
+              "displayName": "Duplicate Bank Partner",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "invoice_edi_format",
+              "displayName": "eInvoice format",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "France (FacturX)",
+                  "value": "facturx"
+                },
+                {
+                  "name": "EU Standard (Peppol Bis 3.0)",
+                  "value": "ubl_bis3"
+                },
+                {
+                  "name": "Germany (ZUGFeRD)",
+                  "value": "zugferd"
+                },
+                {
+                  "name": "Germany (XRechnung)",
+                  "value": "xrechnung"
+                },
+                {
+                  "name": "Netherlands (NLCIUS)",
+                  "value": "nlcius"
+                },
+                {
+                  "name": "Australia (BIS Billing 3.0 A-NZ)",
+                  "value": "ubl_a_nz"
+                },
+                {
+                  "name": "Singapore (BIS Billing 3.0 SG)",
+                  "value": "ubl_sg"
+                },
+                {
+                  "name": "Spain (FacturaE)",
+                  "value": "es_facturae"
+                }
+              ]
+            },
+            {
+              "id": "email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "employee",
+              "displayName": "Employee",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "l10n_es_edi_facturae_residence_type",
+              "displayName": "Facturae EDI Residency Type Code",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "fiscal_country_codes",
+              "displayName": "Fiscal Country Codes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "fiscal_country_group_codes",
+              "displayName": "Fiscal Country Group Codes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "property_account_position_id",
+              "displayName": "Fiscal Position",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "followup_line_id",
+              "displayName": "Follow-up Level",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "followup_status",
+              "displayName": "Follow-up Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "options",
+              "options": [
+                {
+                  "name": "In need of action",
+                  "value": "in_need_of_action"
+                },
+                {
+                  "name": "With overdue invoices",
+                  "value": "with_overdue_invoices"
+                },
+                {
+                  "name": "No action needed",
+                  "value": "no_action_needed"
+                }
+              ]
+            },
+            {
+              "id": "message_follower_ids",
+              "displayName": "Followers",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "message_partner_ids",
+              "displayName": "Followers (Partners)",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "followup_single_currency_id",
+              "displayName": "Followup Single Currency",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "email_formatted",
+              "displayName": "Formatted Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "partner_latitude",
+              "displayName": "Geo Latitude",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "partner_longitude",
+              "displayName": "Geo Longitude",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "global_location_number",
+              "displayName": "GLN",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "has_message",
+              "displayName": "Has Message",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "has_moves",
+              "displayName": "Has Moves",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "activity_exception_icon",
+              "displayName": "Icon",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "id",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "ignore_abnormal_invoice_amount",
+              "displayName": "Ignore Abnormal Invoice Amount",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "ignore_abnormal_invoice_date",
+              "displayName": "Ignore Abnormal Invoice Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "im_status",
+              "displayName": "IM Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "image_1920",
+              "displayName": "Image",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "image_1024",
+              "displayName": "Image 1024",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "image_128",
+              "displayName": "Image 128",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "image_256",
+              "displayName": "Image 256",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "image_512",
+              "displayName": "Image 512",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "incoterm_id",
+              "displayName": "Incoterm",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "incoterm_location",
+              "displayName": "Incoterm Location",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "industry_id",
+              "displayName": "Industry",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "contact_address_inline",
+              "displayName": "Inlined Complete Address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "vies_valid",
+              "displayName": "Intra-Community Valid",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "invoice_edi_format_store",
+              "displayName": "Invoice Edi Format Store",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "invoice_template_pdf_report_id",
+              "displayName": "Invoice report",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "invoice_sending_method",
+              "displayName": "Invoice sending",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Manual",
+                  "value": "manual"
+                },
+                {
+                  "name": "by Email",
+                  "value": "email"
+                },
+                {
+                  "name": "by Post",
+                  "value": "snailmail"
+                },
+                {
+                  "name": "by Peppol",
+                  "value": "peppol"
+                }
+              ]
+            },
+            {
+              "id": "invoice_ids",
+              "displayName": "Invoices",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "is_company",
+              "displayName": "Is a Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "is_created_by_ocr",
+              "displayName": "Is Created By Ocr",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "message_is_follower",
+              "displayName": "Is Follower",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "is_in_call",
+              "displayName": "Is In Call",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "is_peppol_edi_format",
+              "displayName": "Is Peppol Edi Format",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "is_public",
+              "displayName": "Is Public",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "is_ubl_format",
+              "displayName": "Is Ubl Format",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "function",
+              "displayName": "Job Position",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "lang",
+              "displayName": "Language",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Spanish / Español",
+                  "value": "es_ES"
+                }
+              ]
+            },
+            {
+              "id": "calendar_last_notif_ack",
+              "displayName": "Last notification marked as read from base Calendar",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "dateTime"
+            },
+            {
+              "id": "write_uid",
+              "displayName": "Last Updated by",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "write_date",
+              "displayName": "Last Updated on",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "dateTime"
+            },
+            {
+              "id": "iso20022_lei",
+              "displayName": "LEI",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "l10n_es_edi_facturae_ac_logical_operational_point",
+              "displayName": "Logical Operational Point",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "main_user_id",
+              "displayName": "Main User",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "image_medium",
+              "displayName": "Medium-sized image",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "meeting_ids",
+              "displayName": "Meetings",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "message_has_error",
+              "displayName": "Message Delivery error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "sale_warn_msg",
+              "displayName": "Message for Sales Order",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "message_ids",
+              "displayName": "Messages",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "my_activity_date_deadline",
+              "displayName": "My Activity Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "dateTime"
+            },
+            {
+              "id": "name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "activity_calendar_event_id",
+              "displayName": "Next Activity Calendar Event",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "activity_date_deadline",
+              "displayName": "Next Activity Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "dateTime"
+            },
+            {
+              "id": "activity_summary",
+              "displayName": "Next Activity Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "activity_type_id",
+              "displayName": "Next Activity Type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "followup_next_action_date",
+              "displayName": "Next reminder",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "dateTime"
+            },
+            {
+              "id": "email_normalized",
+              "displayName": "Normalized Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "comment",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "message_needaction_counter",
+              "displayName": "Number of Actions",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "message_has_error_counter",
+              "displayName": "Number of errors",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "ocn_token",
+              "displayName": "OCN Token",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "offline_since",
+              "displayName": "Offline since",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "dateTime"
+            },
+            {
+              "id": "opportunity_ids",
+              "displayName": "Opportunities",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "opportunity_count",
+              "displayName": "Opportunity Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "parent_name",
+              "displayName": "Parent name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "contract_ids",
+              "displayName": "Partner Contracts",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "use_partner_credit_limit",
+              "displayName": "Partner Limit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "boolean"
+            },
+            {
+              "id": "partner_vat_placeholder",
+              "displayName": "Partner Vat Placeholder",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "same_company_registry_partner_id",
+              "displayName": "Partner with same Company Registry",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "same_vat_partner_id",
+              "displayName": "Partner with same Tax ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "payment_token_count",
+              "displayName": "Payment Token Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "payment_token_ids",
+              "displayName": "Payment Tokens",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "peppol_eas",
+              "displayName": "Peppol e-address (EAS)",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Albania VAT",
+                  "value": "9923"
+                },
+                {
+                  "name": "Andorra VAT",
+                  "value": "9922"
+                },
+                {
+                  "name": "Australia ABN",
+                  "value": "0151"
+                },
+                {
+                  "name": "Austria UID",
+                  "value": "9914"
+                },
+                {
+                  "name": "Austria VOKZ",
+                  "value": "9915"
+                },
+                {
+                  "name": "Belgian Company Registry",
+                  "value": "0208"
+                },
+                {
+                  "name": "Belgian VAT",
+                  "value": "9925"
+                },
+                {
+                  "name": "Bosnia and Herzegovina VAT",
+                  "value": "9924"
+                },
+                {
+                  "name": "Bulgaria VAT",
+                  "value": "9926"
+                },
+                {
+                  "name": "Croatia VAT",
+                  "value": "9934"
+                },
+                {
+                  "name": "Cyprus VAT",
+                  "value": "9928"
+                },
+                {
+                  "name": "Czech Republic VAT",
+                  "value": "9929"
+                },
+                {
+                  "name": "Denmark P",
+                  "value": "0096"
+                },
+                {
+                  "name": "Denmark CVR",
+                  "value": "0184"
+                },
+                {
+                  "name": "Denmark SE",
+                  "value": "0198"
+                },
+                {
+                  "name": "Estonia Company code",
+                  "value": "0191"
+                },
+                {
+                  "name": "Estonia VAT",
+                  "value": "9931"
+                },
+                {
+                  "name": "Finland LY-tunnus",
+                  "value": "0037"
+                },
+                {
+                  "name": "Finland OVT code",
+                  "value": "0216"
+                },
+                {
+                  "name": "Finland VAT",
+                  "value": "0213"
+                },
+                {
+                  "name": "France SIRENE",
+                  "value": "0002"
+                },
+                {
+                  "name": "France SIRET",
+                  "value": "0009"
+                },
+                {
+                  "name": "France VAT",
+                  "value": "9957"
+                },
+                {
+                  "name": "France FRCTC Electronic Address",
+                  "value": "0225"
+                },
+                {
+                  "name": "France Register of legal persons",
+                  "value": "0240"
+                },
+                {
+                  "name": "German Electronic Business Address",
+                  "value": "0246"
+                },
+                {
+                  "name": "Germany Leitweg-ID",
+                  "value": "0204"
+                },
+                {
+                  "name": "Germany VAT",
+                  "value": "9930"
+                },
+                {
+                  "name": "Greece VAT",
+                  "value": "9933"
+                },
+                {
+                  "name": "Hungary VAT",
+                  "value": "9910"
+                },
+                {
+                  "name": "Iceland Kennitala",
+                  "value": "0196"
+                },
+                {
+                  "name": "Ireland VAT",
+                  "value": "9935"
+                },
+                {
+                  "name": "Italia Partita IVA",
+                  "value": "0211"
+                },
+                {
+                  "name": "Italia FTI",
+                  "value": "0097"
+                },
+                {
+                  "name": "Japan SST",
+                  "value": "0188"
+                },
+                {
+                  "name": "Japan IIN",
+                  "value": "0221"
+                },
+                {
+                  "name": "Latvia Unified registration number",
+                  "value": "0218"
+                },
+                {
+                  "name": "Latvia VAT",
+                  "value": "9939"
+                },
+                {
+                  "name": "Liechtenstein VAT",
+                  "value": "9936"
+                },
+                {
+                  "name": "Lithuania JAK",
+                  "value": "0200"
+                },
+                {
+                  "name": "Lithuania VAT",
+                  "value": "9937"
+                },
+                {
+                  "name": "Luxembourg VAT",
+                  "value": "9938"
+                },
+                {
+                  "name": "Macedonia VAT",
+                  "value": "9942"
+                },
+                {
+                  "name": "Malaysia",
+                  "value": "0230"
+                },
+                {
+                  "name": "Malta VAT",
+                  "value": "9943"
+                },
+                {
+                  "name": "Monaco VAT",
+                  "value": "9940"
+                },
+                {
+                  "name": "Montenegro VAT",
+                  "value": "9941"
+                },
+                {
+                  "name": "Netherlands KvK",
+                  "value": "0106"
+                },
+                {
+                  "name": "Netherlands OIN",
+                  "value": "0190"
+                },
+                {
+                  "name": "Netherlands VAT",
+                  "value": "9944"
+                },
+                {
+                  "name": "Nigeria Tax Identification",
+                  "value": "0244"
+                },
+                {
+                  "name": "Norway Org.nr.",
+                  "value": "0192"
+                },
+                {
+                  "name": "Poland VAT",
+                  "value": "9945"
+                },
+                {
+                  "name": "Portugal VAT",
+                  "value": "9946"
+                },
+                {
+                  "name": "Romania VAT",
+                  "value": "9947"
+                },
+                {
+                  "name": "Serbia VAT",
+                  "value": "9948"
+                },
+                {
+                  "name": "Singapore UEN",
+                  "value": "0195"
+                },
+                {
+                  "name": "SK Tax identification number (DIČ)",
+                  "value": "0245"
+                },
+                {
+                  "name": "Slovenia VAT",
+                  "value": "9949"
+                },
+                {
+                  "name": "Slovakia VAT",
+                  "value": "9950"
+                },
+                {
+                  "name": "Spain VAT",
+                  "value": "9920"
+                },
+                {
+                  "name": "Sweden Org.nr.",
+                  "value": "0007"
+                },
+                {
+                  "name": "Sweden VAT",
+                  "value": "9955"
+                },
+                {
+                  "name": "Swiss VAT",
+                  "value": "9927"
+                },
+                {
+                  "name": "Swiss UIDB",
+                  "value": "0183"
+                },
+                {
+                  "name": "Turkey VAT",
+                  "value": "9952"
+                },
+                {
+                  "name": "UAE Tax Identification Number (TIN)",
+                  "value": "0235"
+                },
+                {
+                  "name": "United Kingdom VAT",
+                  "value": "9932"
+                },
+                {
+                  "name": "USA EIN",
+                  "value": "9959"
+                },
+                {
+                  "name": "DUNS Number",
+                  "value": "0060"
+                },
+                {
+                  "name": "EAN Location Code",
+                  "value": "0088"
+                },
+                {
+                  "name": "Directorates of the European Commission",
+                  "value": "0130"
+                },
+                {
+                  "name": "SIA Object Identifiers",
+                  "value": "0135"
+                },
+                {
+                  "name": "SECETI Object Identifiers",
+                  "value": "0142"
+                },
+                {
+                  "name": "UBL.BE party identifier",
+                  "value": "0193"
+                },
+                {
+                  "name": "Legal Entity Identifier (LEI)",
+                  "value": "0199"
+                },
+                {
+                  "name": "Codice Univoco Unità Organizzativa iPA",
+                  "value": "0201"
+                },
+                {
+                  "name": "Indirizzo di Posta Elettronica Certificata",
+                  "value": "0202"
+                },
+                {
+                  "name": "GS1 identification keys",
+                  "value": "0209"
+                },
+                {
+                  "name": "Codice Fiscale",
+                  "value": "0210"
+                },
+                {
+                  "name": "Business Registers Network",
+                  "value": "9913"
+                },
+                {
+                  "name": "S.W.I.F.T",
+                  "value": "9918"
+                },
+                {
+                  "name": "Kennziffer des Unternehmensregisters",
+                  "value": "9919"
+                },
+                {
+                  "name": "San Marino VAT",
+                  "value": "9951"
+                },
+                {
+                  "name": "Vatican VAT",
+                  "value": "9953"
+                },
+                {
+                  "name": "O.F.T.P. (ODETTE File Transfer Protocol)",
+                  "value": "AN"
+                },
+                {
+                  "name": "X.400 address for mail text",
+                  "value": "AQ"
+                },
+                {
+                  "name": "AS2 exchange",
+                  "value": "AS"
+                },
+                {
+                  "name": "File Transfer Protocol",
+                  "value": "AU"
+                },
+                {
+                  "name": "Electronic mail",
+                  "value": "EM"
+                },
+                {
+                  "name": "Odoo Demo ID",
+                  "value": "odemo"
+                }
+              ]
+            },
+            {
+              "id": "peppol_endpoint",
+              "displayName": "Peppol Endpoint",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "peppol_verification_state",
+              "displayName": "Peppol status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Unchecked",
+                  "value": "not_verified"
+                },
+                {
+                  "name": "Partner is not on Peppol",
+                  "value": "not_valid"
+                },
+                {
+                  "name": "Partner cannot receive format",
+                  "value": "not_valid_format"
+                },
+                {
+                  "name": "Partner is on Peppol",
+                  "value": "valid"
+                }
+              ]
+            },
+            {
+              "id": "perform_vies_validation",
+              "displayName": "Perform Vies Validation",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "phone_sanitized_blacklisted",
+              "displayName": "Phone Blacklisted",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "phone_mobile_search",
+              "displayName": "Phone Number",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "l10n_es_edi_facturae_ac_physical_gln",
+              "displayName": "Physical GLN",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "property_product_pricelist",
+              "displayName": "Pricelist",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "properties",
+              "displayName": "Properties",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "properties_base_definition_id",
+              "displayName": "Properties Base Definition",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "property_inbound_payment_method_line_id",
+              "displayName": "Property Inbound Payment Method Line",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "property_outbound_payment_method_line_id",
+              "displayName": "Property Outbound Payment Method Line",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "rating_ids",
+              "displayName": "Ratings",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "ref",
+              "displayName": "Reference",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "parent_id",
+              "displayName": "Related Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "child_ids",
+              "displayName": "Related Contacts",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "followup_reminder_type",
+              "displayName": "Reminders",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Automatic",
+                  "value": "automatic"
+                },
+                {
+                  "name": "Manual",
+                  "value": "manual"
+                }
+              ]
+            },
+            {
+              "id": "followup_responsible_id",
+              "displayName": "Responsible",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "activity_user_id",
+              "displayName": "Responsible User",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "l10n_es_edi_facturae_ac_role_type_ids",
+              "displayName": "Roles",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "rtc_session_ids",
+              "displayName": "Rtc Session",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "sale_order_count",
+              "displayName": "Sale Order Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "sale_order_ids",
+              "displayName": "Sales Order",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "user_id",
+              "displayName": "Salesperson",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "phone_sanitized",
+              "displayName": "Sanitized Number",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "self",
+              "displayName": "Self",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "partner_share",
+              "displayName": "Share Partner",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "show_credit_limit",
+              "displayName": "Show Credit Limit",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "signup_type",
+              "displayName": "Signup Token Type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "sla_ids",
+              "displayName": "SLA Policies",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "message_has_sms_error",
+              "displayName": "SMS Delivery error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "boolean"
+            },
+            {
+              "id": "specific_property_product_pricelist",
+              "displayName": "Specific Property Product Pricelist",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "state_id",
+              "displayName": "State",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "application_statistics",
+              "displayName": "Stats",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "street",
+              "displayName": "Street",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "street2",
+              "displayName": "Street2",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "supplier_rank",
+              "displayName": "Supplier Rank",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "number"
+            },
+            {
+              "id": "category_id",
+              "displayName": "Tags",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "vat_label",
+              "displayName": "Tax ID Label",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "ticket_count",
+              "displayName": "Tickets",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "tz",
+              "displayName": "Timezone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Africa/Abidjan",
+                  "value": "Africa/Abidjan"
+                },
+                {
+                  "name": "Africa/Accra",
+                  "value": "Africa/Accra"
+                },
+                {
+                  "name": "Africa/Addis_Ababa",
+                  "value": "Africa/Addis_Ababa"
+                },
+                {
+                  "name": "Africa/Algiers",
+                  "value": "Africa/Algiers"
+                },
+                {
+                  "name": "Africa/Asmara",
+                  "value": "Africa/Asmara"
+                },
+                {
+                  "name": "Africa/Asmera",
+                  "value": "Africa/Asmera"
+                },
+                {
+                  "name": "Africa/Bamako",
+                  "value": "Africa/Bamako"
+                },
+                {
+                  "name": "Africa/Bangui",
+                  "value": "Africa/Bangui"
+                },
+                {
+                  "name": "Africa/Banjul",
+                  "value": "Africa/Banjul"
+                },
+                {
+                  "name": "Africa/Bissau",
+                  "value": "Africa/Bissau"
+                },
+                {
+                  "name": "Africa/Blantyre",
+                  "value": "Africa/Blantyre"
+                },
+                {
+                  "name": "Africa/Brazzaville",
+                  "value": "Africa/Brazzaville"
+                },
+                {
+                  "name": "Africa/Bujumbura",
+                  "value": "Africa/Bujumbura"
+                },
+                {
+                  "name": "Africa/Cairo",
+                  "value": "Africa/Cairo"
+                },
+                {
+                  "name": "Africa/Casablanca",
+                  "value": "Africa/Casablanca"
+                },
+                {
+                  "name": "Africa/Ceuta",
+                  "value": "Africa/Ceuta"
+                },
+                {
+                  "name": "Africa/Conakry",
+                  "value": "Africa/Conakry"
+                },
+                {
+                  "name": "Africa/Dakar",
+                  "value": "Africa/Dakar"
+                },
+                {
+                  "name": "Africa/Dar_es_Salaam",
+                  "value": "Africa/Dar_es_Salaam"
+                },
+                {
+                  "name": "Africa/Djibouti",
+                  "value": "Africa/Djibouti"
+                },
+                {
+                  "name": "Africa/Douala",
+                  "value": "Africa/Douala"
+                },
+                {
+                  "name": "Africa/El_Aaiun",
+                  "value": "Africa/El_Aaiun"
+                },
+                {
+                  "name": "Africa/Freetown",
+                  "value": "Africa/Freetown"
+                },
+                {
+                  "name": "Africa/Gaborone",
+                  "value": "Africa/Gaborone"
+                },
+                {
+                  "name": "Africa/Harare",
+                  "value": "Africa/Harare"
+                },
+                {
+                  "name": "Africa/Johannesburg",
+                  "value": "Africa/Johannesburg"
+                },
+                {
+                  "name": "Africa/Juba",
+                  "value": "Africa/Juba"
+                },
+                {
+                  "name": "Africa/Kampala",
+                  "value": "Africa/Kampala"
+                },
+                {
+                  "name": "Africa/Khartoum",
+                  "value": "Africa/Khartoum"
+                },
+                {
+                  "name": "Africa/Kigali",
+                  "value": "Africa/Kigali"
+                },
+                {
+                  "name": "Africa/Kinshasa",
+                  "value": "Africa/Kinshasa"
+                },
+                {
+                  "name": "Africa/Lagos",
+                  "value": "Africa/Lagos"
+                },
+                {
+                  "name": "Africa/Libreville",
+                  "value": "Africa/Libreville"
+                },
+                {
+                  "name": "Africa/Lome",
+                  "value": "Africa/Lome"
+                },
+                {
+                  "name": "Africa/Luanda",
+                  "value": "Africa/Luanda"
+                },
+                {
+                  "name": "Africa/Lubumbashi",
+                  "value": "Africa/Lubumbashi"
+                },
+                {
+                  "name": "Africa/Lusaka",
+                  "value": "Africa/Lusaka"
+                },
+                {
+                  "name": "Africa/Malabo",
+                  "value": "Africa/Malabo"
+                },
+                {
+                  "name": "Africa/Maputo",
+                  "value": "Africa/Maputo"
+                },
+                {
+                  "name": "Africa/Maseru",
+                  "value": "Africa/Maseru"
+                },
+                {
+                  "name": "Africa/Mbabane",
+                  "value": "Africa/Mbabane"
+                },
+                {
+                  "name": "Africa/Mogadishu",
+                  "value": "Africa/Mogadishu"
+                },
+                {
+                  "name": "Africa/Monrovia",
+                  "value": "Africa/Monrovia"
+                },
+                {
+                  "name": "Africa/Nairobi",
+                  "value": "Africa/Nairobi"
+                },
+                {
+                  "name": "Africa/Ndjamena",
+                  "value": "Africa/Ndjamena"
+                },
+                {
+                  "name": "Africa/Niamey",
+                  "value": "Africa/Niamey"
+                },
+                {
+                  "name": "Africa/Nouakchott",
+                  "value": "Africa/Nouakchott"
+                },
+                {
+                  "name": "Africa/Ouagadougou",
+                  "value": "Africa/Ouagadougou"
+                },
+                {
+                  "name": "Africa/Porto-Novo",
+                  "value": "Africa/Porto-Novo"
+                },
+                {
+                  "name": "Africa/Sao_Tome",
+                  "value": "Africa/Sao_Tome"
+                },
+                {
+                  "name": "Africa/Timbuktu",
+                  "value": "Africa/Timbuktu"
+                },
+                {
+                  "name": "Africa/Tripoli",
+                  "value": "Africa/Tripoli"
+                },
+                {
+                  "name": "Africa/Tunis",
+                  "value": "Africa/Tunis"
+                },
+                {
+                  "name": "Africa/Windhoek",
+                  "value": "Africa/Windhoek"
+                },
+                {
+                  "name": "America/Adak",
+                  "value": "America/Adak"
+                },
+                {
+                  "name": "America/Anchorage",
+                  "value": "America/Anchorage"
+                },
+                {
+                  "name": "America/Anguilla",
+                  "value": "America/Anguilla"
+                },
+                {
+                  "name": "America/Antigua",
+                  "value": "America/Antigua"
+                },
+                {
+                  "name": "America/Araguaina",
+                  "value": "America/Araguaina"
+                },
+                {
+                  "name": "America/Argentina/Buenos_Aires",
+                  "value": "America/Argentina/Buenos_Aires"
+                },
+                {
+                  "name": "America/Argentina/Catamarca",
+                  "value": "America/Argentina/Catamarca"
+                },
+                {
+                  "name": "America/Argentina/ComodRivadavia",
+                  "value": "America/Argentina/ComodRivadavia"
+                },
+                {
+                  "name": "America/Argentina/Cordoba",
+                  "value": "America/Argentina/Cordoba"
+                },
+                {
+                  "name": "America/Argentina/Jujuy",
+                  "value": "America/Argentina/Jujuy"
+                },
+                {
+                  "name": "America/Argentina/La_Rioja",
+                  "value": "America/Argentina/La_Rioja"
+                },
+                {
+                  "name": "America/Argentina/Mendoza",
+                  "value": "America/Argentina/Mendoza"
+                },
+                {
+                  "name": "America/Argentina/Rio_Gallegos",
+                  "value": "America/Argentina/Rio_Gallegos"
+                },
+                {
+                  "name": "America/Argentina/Salta",
+                  "value": "America/Argentina/Salta"
+                },
+                {
+                  "name": "America/Argentina/San_Juan",
+                  "value": "America/Argentina/San_Juan"
+                },
+                {
+                  "name": "America/Argentina/San_Luis",
+                  "value": "America/Argentina/San_Luis"
+                },
+                {
+                  "name": "America/Argentina/Tucuman",
+                  "value": "America/Argentina/Tucuman"
+                },
+                {
+                  "name": "America/Argentina/Ushuaia",
+                  "value": "America/Argentina/Ushuaia"
+                },
+                {
+                  "name": "America/Aruba",
+                  "value": "America/Aruba"
+                },
+                {
+                  "name": "America/Asuncion",
+                  "value": "America/Asuncion"
+                },
+                {
+                  "name": "America/Atikokan",
+                  "value": "America/Atikokan"
+                },
+                {
+                  "name": "America/Atka",
+                  "value": "America/Atka"
+                },
+                {
+                  "name": "America/Bahia",
+                  "value": "America/Bahia"
+                },
+                {
+                  "name": "America/Bahia_Banderas",
+                  "value": "America/Bahia_Banderas"
+                },
+                {
+                  "name": "America/Barbados",
+                  "value": "America/Barbados"
+                },
+                {
+                  "name": "America/Belem",
+                  "value": "America/Belem"
+                },
+                {
+                  "name": "America/Belize",
+                  "value": "America/Belize"
+                },
+                {
+                  "name": "America/Blanc-Sablon",
+                  "value": "America/Blanc-Sablon"
+                },
+                {
+                  "name": "America/Boa_Vista",
+                  "value": "America/Boa_Vista"
+                },
+                {
+                  "name": "America/Bogota",
+                  "value": "America/Bogota"
+                },
+                {
+                  "name": "America/Boise",
+                  "value": "America/Boise"
+                },
+                {
+                  "name": "America/Buenos_Aires",
+                  "value": "America/Buenos_Aires"
+                },
+                {
+                  "name": "America/Cambridge_Bay",
+                  "value": "America/Cambridge_Bay"
+                },
+                {
+                  "name": "America/Campo_Grande",
+                  "value": "America/Campo_Grande"
+                },
+                {
+                  "name": "America/Cancun",
+                  "value": "America/Cancun"
+                },
+                {
+                  "name": "America/Caracas",
+                  "value": "America/Caracas"
+                },
+                {
+                  "name": "America/Catamarca",
+                  "value": "America/Catamarca"
+                },
+                {
+                  "name": "America/Cayenne",
+                  "value": "America/Cayenne"
+                },
+                {
+                  "name": "America/Cayman",
+                  "value": "America/Cayman"
+                },
+                {
+                  "name": "America/Chicago",
+                  "value": "America/Chicago"
+                },
+                {
+                  "name": "America/Chihuahua",
+                  "value": "America/Chihuahua"
+                },
+                {
+                  "name": "America/Ciudad_Juarez",
+                  "value": "America/Ciudad_Juarez"
+                },
+                {
+                  "name": "America/Coral_Harbour",
+                  "value": "America/Coral_Harbour"
+                },
+                {
+                  "name": "America/Cordoba",
+                  "value": "America/Cordoba"
+                },
+                {
+                  "name": "America/Costa_Rica",
+                  "value": "America/Costa_Rica"
+                },
+                {
+                  "name": "America/Coyhaique",
+                  "value": "America/Coyhaique"
+                },
+                {
+                  "name": "America/Creston",
+                  "value": "America/Creston"
+                },
+                {
+                  "name": "America/Cuiaba",
+                  "value": "America/Cuiaba"
+                },
+                {
+                  "name": "America/Curacao",
+                  "value": "America/Curacao"
+                },
+                {
+                  "name": "America/Danmarkshavn",
+                  "value": "America/Danmarkshavn"
+                },
+                {
+                  "name": "America/Dawson",
+                  "value": "America/Dawson"
+                },
+                {
+                  "name": "America/Dawson_Creek",
+                  "value": "America/Dawson_Creek"
+                },
+                {
+                  "name": "America/Denver",
+                  "value": "America/Denver"
+                },
+                {
+                  "name": "America/Detroit",
+                  "value": "America/Detroit"
+                },
+                {
+                  "name": "America/Dominica",
+                  "value": "America/Dominica"
+                },
+                {
+                  "name": "America/Edmonton",
+                  "value": "America/Edmonton"
+                },
+                {
+                  "name": "America/Eirunepe",
+                  "value": "America/Eirunepe"
+                },
+                {
+                  "name": "America/El_Salvador",
+                  "value": "America/El_Salvador"
+                },
+                {
+                  "name": "America/Ensenada",
+                  "value": "America/Ensenada"
+                },
+                {
+                  "name": "America/Fort_Nelson",
+                  "value": "America/Fort_Nelson"
+                },
+                {
+                  "name": "America/Fort_Wayne",
+                  "value": "America/Fort_Wayne"
+                },
+                {
+                  "name": "America/Fortaleza",
+                  "value": "America/Fortaleza"
+                },
+                {
+                  "name": "America/Glace_Bay",
+                  "value": "America/Glace_Bay"
+                },
+                {
+                  "name": "America/Godthab",
+                  "value": "America/Godthab"
+                },
+                {
+                  "name": "America/Goose_Bay",
+                  "value": "America/Goose_Bay"
+                },
+                {
+                  "name": "America/Grand_Turk",
+                  "value": "America/Grand_Turk"
+                },
+                {
+                  "name": "America/Grenada",
+                  "value": "America/Grenada"
+                },
+                {
+                  "name": "America/Guadeloupe",
+                  "value": "America/Guadeloupe"
+                },
+                {
+                  "name": "America/Guatemala",
+                  "value": "America/Guatemala"
+                },
+                {
+                  "name": "America/Guayaquil",
+                  "value": "America/Guayaquil"
+                },
+                {
+                  "name": "America/Guyana",
+                  "value": "America/Guyana"
+                },
+                {
+                  "name": "America/Halifax",
+                  "value": "America/Halifax"
+                },
+                {
+                  "name": "America/Havana",
+                  "value": "America/Havana"
+                },
+                {
+                  "name": "America/Hermosillo",
+                  "value": "America/Hermosillo"
+                },
+                {
+                  "name": "America/Indiana/Indianapolis",
+                  "value": "America/Indiana/Indianapolis"
+                },
+                {
+                  "name": "America/Indiana/Knox",
+                  "value": "America/Indiana/Knox"
+                },
+                {
+                  "name": "America/Indiana/Marengo",
+                  "value": "America/Indiana/Marengo"
+                },
+                {
+                  "name": "America/Indiana/Petersburg",
+                  "value": "America/Indiana/Petersburg"
+                },
+                {
+                  "name": "America/Indiana/Tell_City",
+                  "value": "America/Indiana/Tell_City"
+                },
+                {
+                  "name": "America/Indiana/Vevay",
+                  "value": "America/Indiana/Vevay"
+                },
+                {
+                  "name": "America/Indiana/Vincennes",
+                  "value": "America/Indiana/Vincennes"
+                },
+                {
+                  "name": "America/Indiana/Winamac",
+                  "value": "America/Indiana/Winamac"
+                },
+                {
+                  "name": "America/Indianapolis",
+                  "value": "America/Indianapolis"
+                },
+                {
+                  "name": "America/Inuvik",
+                  "value": "America/Inuvik"
+                },
+                {
+                  "name": "America/Iqaluit",
+                  "value": "America/Iqaluit"
+                },
+                {
+                  "name": "America/Jamaica",
+                  "value": "America/Jamaica"
+                },
+                {
+                  "name": "America/Jujuy",
+                  "value": "America/Jujuy"
+                },
+                {
+                  "name": "America/Juneau",
+                  "value": "America/Juneau"
+                },
+                {
+                  "name": "America/Kentucky/Louisville",
+                  "value": "America/Kentucky/Louisville"
+                },
+                {
+                  "name": "America/Kentucky/Monticello",
+                  "value": "America/Kentucky/Monticello"
+                },
+                {
+                  "name": "America/Knox_IN",
+                  "value": "America/Knox_IN"
+                },
+                {
+                  "name": "America/Kralendijk",
+                  "value": "America/Kralendijk"
+                },
+                {
+                  "name": "America/La_Paz",
+                  "value": "America/La_Paz"
+                },
+                {
+                  "name": "America/Lima",
+                  "value": "America/Lima"
+                },
+                {
+                  "name": "America/Los_Angeles",
+                  "value": "America/Los_Angeles"
+                },
+                {
+                  "name": "America/Louisville",
+                  "value": "America/Louisville"
+                },
+                {
+                  "name": "America/Lower_Princes",
+                  "value": "America/Lower_Princes"
+                },
+                {
+                  "name": "America/Maceio",
+                  "value": "America/Maceio"
+                },
+                {
+                  "name": "America/Managua",
+                  "value": "America/Managua"
+                },
+                {
+                  "name": "America/Manaus",
+                  "value": "America/Manaus"
+                },
+                {
+                  "name": "America/Marigot",
+                  "value": "America/Marigot"
+                },
+                {
+                  "name": "America/Martinique",
+                  "value": "America/Martinique"
+                },
+                {
+                  "name": "America/Matamoros",
+                  "value": "America/Matamoros"
+                },
+                {
+                  "name": "America/Mazatlan",
+                  "value": "America/Mazatlan"
+                },
+                {
+                  "name": "America/Mendoza",
+                  "value": "America/Mendoza"
+                },
+                {
+                  "name": "America/Menominee",
+                  "value": "America/Menominee"
+                },
+                {
+                  "name": "America/Merida",
+                  "value": "America/Merida"
+                },
+                {
+                  "name": "America/Metlakatla",
+                  "value": "America/Metlakatla"
+                },
+                {
+                  "name": "America/Mexico_City",
+                  "value": "America/Mexico_City"
+                },
+                {
+                  "name": "America/Miquelon",
+                  "value": "America/Miquelon"
+                },
+                {
+                  "name": "America/Moncton",
+                  "value": "America/Moncton"
+                },
+                {
+                  "name": "America/Monterrey",
+                  "value": "America/Monterrey"
+                },
+                {
+                  "name": "America/Montevideo",
+                  "value": "America/Montevideo"
+                },
+                {
+                  "name": "America/Montreal",
+                  "value": "America/Montreal"
+                },
+                {
+                  "name": "America/Montserrat",
+                  "value": "America/Montserrat"
+                },
+                {
+                  "name": "America/Nassau",
+                  "value": "America/Nassau"
+                },
+                {
+                  "name": "America/New_York",
+                  "value": "America/New_York"
+                },
+                {
+                  "name": "America/Nipigon",
+                  "value": "America/Nipigon"
+                },
+                {
+                  "name": "America/Nome",
+                  "value": "America/Nome"
+                },
+                {
+                  "name": "America/Noronha",
+                  "value": "America/Noronha"
+                },
+                {
+                  "name": "America/North_Dakota/Beulah",
+                  "value": "America/North_Dakota/Beulah"
+                },
+                {
+                  "name": "America/North_Dakota/Center",
+                  "value": "America/North_Dakota/Center"
+                },
+                {
+                  "name": "America/North_Dakota/New_Salem",
+                  "value": "America/North_Dakota/New_Salem"
+                },
+                {
+                  "name": "America/Nuuk",
+                  "value": "America/Nuuk"
+                },
+                {
+                  "name": "America/Ojinaga",
+                  "value": "America/Ojinaga"
+                },
+                {
+                  "name": "America/Panama",
+                  "value": "America/Panama"
+                },
+                {
+                  "name": "America/Pangnirtung",
+                  "value": "America/Pangnirtung"
+                },
+                {
+                  "name": "America/Paramaribo",
+                  "value": "America/Paramaribo"
+                },
+                {
+                  "name": "America/Phoenix",
+                  "value": "America/Phoenix"
+                },
+                {
+                  "name": "America/Port-au-Prince",
+                  "value": "America/Port-au-Prince"
+                },
+                {
+                  "name": "America/Port_of_Spain",
+                  "value": "America/Port_of_Spain"
+                },
+                {
+                  "name": "America/Porto_Acre",
+                  "value": "America/Porto_Acre"
+                },
+                {
+                  "name": "America/Porto_Velho",
+                  "value": "America/Porto_Velho"
+                },
+                {
+                  "name": "America/Puerto_Rico",
+                  "value": "America/Puerto_Rico"
+                },
+                {
+                  "name": "America/Punta_Arenas",
+                  "value": "America/Punta_Arenas"
+                },
+                {
+                  "name": "America/Rainy_River",
+                  "value": "America/Rainy_River"
+                },
+                {
+                  "name": "America/Rankin_Inlet",
+                  "value": "America/Rankin_Inlet"
+                },
+                {
+                  "name": "America/Recife",
+                  "value": "America/Recife"
+                },
+                {
+                  "name": "America/Regina",
+                  "value": "America/Regina"
+                },
+                {
+                  "name": "America/Resolute",
+                  "value": "America/Resolute"
+                },
+                {
+                  "name": "America/Rio_Branco",
+                  "value": "America/Rio_Branco"
+                },
+                {
+                  "name": "America/Rosario",
+                  "value": "America/Rosario"
+                },
+                {
+                  "name": "America/Santa_Isabel",
+                  "value": "America/Santa_Isabel"
+                },
+                {
+                  "name": "America/Santarem",
+                  "value": "America/Santarem"
+                },
+                {
+                  "name": "America/Santiago",
+                  "value": "America/Santiago"
+                },
+                {
+                  "name": "America/Santo_Domingo",
+                  "value": "America/Santo_Domingo"
+                },
+                {
+                  "name": "America/Sao_Paulo",
+                  "value": "America/Sao_Paulo"
+                },
+                {
+                  "name": "America/Scoresbysund",
+                  "value": "America/Scoresbysund"
+                },
+                {
+                  "name": "America/Shiprock",
+                  "value": "America/Shiprock"
+                },
+                {
+                  "name": "America/Sitka",
+                  "value": "America/Sitka"
+                },
+                {
+                  "name": "America/St_Barthelemy",
+                  "value": "America/St_Barthelemy"
+                },
+                {
+                  "name": "America/St_Johns",
+                  "value": "America/St_Johns"
+                },
+                {
+                  "name": "America/St_Kitts",
+                  "value": "America/St_Kitts"
+                },
+                {
+                  "name": "America/St_Lucia",
+                  "value": "America/St_Lucia"
+                },
+                {
+                  "name": "America/St_Thomas",
+                  "value": "America/St_Thomas"
+                },
+                {
+                  "name": "America/St_Vincent",
+                  "value": "America/St_Vincent"
+                },
+                {
+                  "name": "America/Swift_Current",
+                  "value": "America/Swift_Current"
+                },
+                {
+                  "name": "America/Tegucigalpa",
+                  "value": "America/Tegucigalpa"
+                },
+                {
+                  "name": "America/Thule",
+                  "value": "America/Thule"
+                },
+                {
+                  "name": "America/Thunder_Bay",
+                  "value": "America/Thunder_Bay"
+                },
+                {
+                  "name": "America/Tijuana",
+                  "value": "America/Tijuana"
+                },
+                {
+                  "name": "America/Toronto",
+                  "value": "America/Toronto"
+                },
+                {
+                  "name": "America/Tortola",
+                  "value": "America/Tortola"
+                },
+                {
+                  "name": "America/Vancouver",
+                  "value": "America/Vancouver"
+                },
+                {
+                  "name": "America/Virgin",
+                  "value": "America/Virgin"
+                },
+                {
+                  "name": "America/Whitehorse",
+                  "value": "America/Whitehorse"
+                },
+                {
+                  "name": "America/Winnipeg",
+                  "value": "America/Winnipeg"
+                },
+                {
+                  "name": "America/Yakutat",
+                  "value": "America/Yakutat"
+                },
+                {
+                  "name": "America/Yellowknife",
+                  "value": "America/Yellowknife"
+                },
+                {
+                  "name": "Antarctica/Casey",
+                  "value": "Antarctica/Casey"
+                },
+                {
+                  "name": "Antarctica/Davis",
+                  "value": "Antarctica/Davis"
+                },
+                {
+                  "name": "Antarctica/DumontDUrville",
+                  "value": "Antarctica/DumontDUrville"
+                },
+                {
+                  "name": "Antarctica/Macquarie",
+                  "value": "Antarctica/Macquarie"
+                },
+                {
+                  "name": "Antarctica/Mawson",
+                  "value": "Antarctica/Mawson"
+                },
+                {
+                  "name": "Antarctica/McMurdo",
+                  "value": "Antarctica/McMurdo"
+                },
+                {
+                  "name": "Antarctica/Palmer",
+                  "value": "Antarctica/Palmer"
+                },
+                {
+                  "name": "Antarctica/Rothera",
+                  "value": "Antarctica/Rothera"
+                },
+                {
+                  "name": "Antarctica/South_Pole",
+                  "value": "Antarctica/South_Pole"
+                },
+                {
+                  "name": "Antarctica/Syowa",
+                  "value": "Antarctica/Syowa"
+                },
+                {
+                  "name": "Antarctica/Troll",
+                  "value": "Antarctica/Troll"
+                },
+                {
+                  "name": "Antarctica/Vostok",
+                  "value": "Antarctica/Vostok"
+                },
+                {
+                  "name": "Arctic/Longyearbyen",
+                  "value": "Arctic/Longyearbyen"
+                },
+                {
+                  "name": "Asia/Aden",
+                  "value": "Asia/Aden"
+                },
+                {
+                  "name": "Asia/Almaty",
+                  "value": "Asia/Almaty"
+                },
+                {
+                  "name": "Asia/Amman",
+                  "value": "Asia/Amman"
+                },
+                {
+                  "name": "Asia/Anadyr",
+                  "value": "Asia/Anadyr"
+                },
+                {
+                  "name": "Asia/Aqtau",
+                  "value": "Asia/Aqtau"
+                },
+                {
+                  "name": "Asia/Aqtobe",
+                  "value": "Asia/Aqtobe"
+                },
+                {
+                  "name": "Asia/Ashgabat",
+                  "value": "Asia/Ashgabat"
+                },
+                {
+                  "name": "Asia/Ashkhabad",
+                  "value": "Asia/Ashkhabad"
+                },
+                {
+                  "name": "Asia/Atyrau",
+                  "value": "Asia/Atyrau"
+                },
+                {
+                  "name": "Asia/Baghdad",
+                  "value": "Asia/Baghdad"
+                },
+                {
+                  "name": "Asia/Bahrain",
+                  "value": "Asia/Bahrain"
+                },
+                {
+                  "name": "Asia/Baku",
+                  "value": "Asia/Baku"
+                },
+                {
+                  "name": "Asia/Bangkok",
+                  "value": "Asia/Bangkok"
+                },
+                {
+                  "name": "Asia/Barnaul",
+                  "value": "Asia/Barnaul"
+                },
+                {
+                  "name": "Asia/Beirut",
+                  "value": "Asia/Beirut"
+                },
+                {
+                  "name": "Asia/Bishkek",
+                  "value": "Asia/Bishkek"
+                },
+                {
+                  "name": "Asia/Brunei",
+                  "value": "Asia/Brunei"
+                },
+                {
+                  "name": "Asia/Calcutta",
+                  "value": "Asia/Calcutta"
+                },
+                {
+                  "name": "Asia/Chita",
+                  "value": "Asia/Chita"
+                },
+                {
+                  "name": "Asia/Choibalsan",
+                  "value": "Asia/Choibalsan"
+                },
+                {
+                  "name": "Asia/Chongqing",
+                  "value": "Asia/Chongqing"
+                },
+                {
+                  "name": "Asia/Chungking",
+                  "value": "Asia/Chungking"
+                },
+                {
+                  "name": "Asia/Colombo",
+                  "value": "Asia/Colombo"
+                },
+                {
+                  "name": "Asia/Dacca",
+                  "value": "Asia/Dacca"
+                },
+                {
+                  "name": "Asia/Damascus",
+                  "value": "Asia/Damascus"
+                },
+                {
+                  "name": "Asia/Dhaka",
+                  "value": "Asia/Dhaka"
+                },
+                {
+                  "name": "Asia/Dili",
+                  "value": "Asia/Dili"
+                },
+                {
+                  "name": "Asia/Dubai",
+                  "value": "Asia/Dubai"
+                },
+                {
+                  "name": "Asia/Dushanbe",
+                  "value": "Asia/Dushanbe"
+                },
+                {
+                  "name": "Asia/Famagusta",
+                  "value": "Asia/Famagusta"
+                },
+                {
+                  "name": "Asia/Gaza",
+                  "value": "Asia/Gaza"
+                },
+                {
+                  "name": "Asia/Harbin",
+                  "value": "Asia/Harbin"
+                },
+                {
+                  "name": "Asia/Hebron",
+                  "value": "Asia/Hebron"
+                },
+                {
+                  "name": "Asia/Ho_Chi_Minh",
+                  "value": "Asia/Ho_Chi_Minh"
+                },
+                {
+                  "name": "Asia/Hong_Kong",
+                  "value": "Asia/Hong_Kong"
+                },
+                {
+                  "name": "Asia/Hovd",
+                  "value": "Asia/Hovd"
+                },
+                {
+                  "name": "Asia/Irkutsk",
+                  "value": "Asia/Irkutsk"
+                },
+                {
+                  "name": "Asia/Istanbul",
+                  "value": "Asia/Istanbul"
+                },
+                {
+                  "name": "Asia/Jakarta",
+                  "value": "Asia/Jakarta"
+                },
+                {
+                  "name": "Asia/Jayapura",
+                  "value": "Asia/Jayapura"
+                },
+                {
+                  "name": "Asia/Jerusalem",
+                  "value": "Asia/Jerusalem"
+                },
+                {
+                  "name": "Asia/Kabul",
+                  "value": "Asia/Kabul"
+                },
+                {
+                  "name": "Asia/Kamchatka",
+                  "value": "Asia/Kamchatka"
+                },
+                {
+                  "name": "Asia/Karachi",
+                  "value": "Asia/Karachi"
+                },
+                {
+                  "name": "Asia/Kashgar",
+                  "value": "Asia/Kashgar"
+                },
+                {
+                  "name": "Asia/Kathmandu",
+                  "value": "Asia/Kathmandu"
+                },
+                {
+                  "name": "Asia/Katmandu",
+                  "value": "Asia/Katmandu"
+                },
+                {
+                  "name": "Asia/Khandyga",
+                  "value": "Asia/Khandyga"
+                },
+                {
+                  "name": "Asia/Kolkata",
+                  "value": "Asia/Kolkata"
+                },
+                {
+                  "name": "Asia/Krasnoyarsk",
+                  "value": "Asia/Krasnoyarsk"
+                },
+                {
+                  "name": "Asia/Kuala_Lumpur",
+                  "value": "Asia/Kuala_Lumpur"
+                },
+                {
+                  "name": "Asia/Kuching",
+                  "value": "Asia/Kuching"
+                },
+                {
+                  "name": "Asia/Kuwait",
+                  "value": "Asia/Kuwait"
+                },
+                {
+                  "name": "Asia/Macao",
+                  "value": "Asia/Macao"
+                },
+                {
+                  "name": "Asia/Macau",
+                  "value": "Asia/Macau"
+                },
+                {
+                  "name": "Asia/Magadan",
+                  "value": "Asia/Magadan"
+                },
+                {
+                  "name": "Asia/Makassar",
+                  "value": "Asia/Makassar"
+                },
+                {
+                  "name": "Asia/Manila",
+                  "value": "Asia/Manila"
+                },
+                {
+                  "name": "Asia/Muscat",
+                  "value": "Asia/Muscat"
+                },
+                {
+                  "name": "Asia/Nicosia",
+                  "value": "Asia/Nicosia"
+                },
+                {
+                  "name": "Asia/Novokuznetsk",
+                  "value": "Asia/Novokuznetsk"
+                },
+                {
+                  "name": "Asia/Novosibirsk",
+                  "value": "Asia/Novosibirsk"
+                },
+                {
+                  "name": "Asia/Omsk",
+                  "value": "Asia/Omsk"
+                },
+                {
+                  "name": "Asia/Oral",
+                  "value": "Asia/Oral"
+                },
+                {
+                  "name": "Asia/Phnom_Penh",
+                  "value": "Asia/Phnom_Penh"
+                },
+                {
+                  "name": "Asia/Pontianak",
+                  "value": "Asia/Pontianak"
+                },
+                {
+                  "name": "Asia/Pyongyang",
+                  "value": "Asia/Pyongyang"
+                },
+                {
+                  "name": "Asia/Qatar",
+                  "value": "Asia/Qatar"
+                },
+                {
+                  "name": "Asia/Qostanay",
+                  "value": "Asia/Qostanay"
+                },
+                {
+                  "name": "Asia/Qyzylorda",
+                  "value": "Asia/Qyzylorda"
+                },
+                {
+                  "name": "Asia/Rangoon",
+                  "value": "Asia/Rangoon"
+                },
+                {
+                  "name": "Asia/Riyadh",
+                  "value": "Asia/Riyadh"
+                },
+                {
+                  "name": "Asia/Saigon",
+                  "value": "Asia/Saigon"
+                },
+                {
+                  "name": "Asia/Sakhalin",
+                  "value": "Asia/Sakhalin"
+                },
+                {
+                  "name": "Asia/Samarkand",
+                  "value": "Asia/Samarkand"
+                },
+                {
+                  "name": "Asia/Seoul",
+                  "value": "Asia/Seoul"
+                },
+                {
+                  "name": "Asia/Shanghai",
+                  "value": "Asia/Shanghai"
+                },
+                {
+                  "name": "Asia/Singapore",
+                  "value": "Asia/Singapore"
+                },
+                {
+                  "name": "Asia/Srednekolymsk",
+                  "value": "Asia/Srednekolymsk"
+                },
+                {
+                  "name": "Asia/Taipei",
+                  "value": "Asia/Taipei"
+                },
+                {
+                  "name": "Asia/Tashkent",
+                  "value": "Asia/Tashkent"
+                },
+                {
+                  "name": "Asia/Tbilisi",
+                  "value": "Asia/Tbilisi"
+                },
+                {
+                  "name": "Asia/Tehran",
+                  "value": "Asia/Tehran"
+                },
+                {
+                  "name": "Asia/Tel_Aviv",
+                  "value": "Asia/Tel_Aviv"
+                },
+                {
+                  "name": "Asia/Thimbu",
+                  "value": "Asia/Thimbu"
+                },
+                {
+                  "name": "Asia/Thimphu",
+                  "value": "Asia/Thimphu"
+                },
+                {
+                  "name": "Asia/Tokyo",
+                  "value": "Asia/Tokyo"
+                },
+                {
+                  "name": "Asia/Tomsk",
+                  "value": "Asia/Tomsk"
+                },
+                {
+                  "name": "Asia/Ujung_Pandang",
+                  "value": "Asia/Ujung_Pandang"
+                },
+                {
+                  "name": "Asia/Ulaanbaatar",
+                  "value": "Asia/Ulaanbaatar"
+                },
+                {
+                  "name": "Asia/Ulan_Bator",
+                  "value": "Asia/Ulan_Bator"
+                },
+                {
+                  "name": "Asia/Urumqi",
+                  "value": "Asia/Urumqi"
+                },
+                {
+                  "name": "Asia/Ust-Nera",
+                  "value": "Asia/Ust-Nera"
+                },
+                {
+                  "name": "Asia/Vientiane",
+                  "value": "Asia/Vientiane"
+                },
+                {
+                  "name": "Asia/Vladivostok",
+                  "value": "Asia/Vladivostok"
+                },
+                {
+                  "name": "Asia/Yakutsk",
+                  "value": "Asia/Yakutsk"
+                },
+                {
+                  "name": "Asia/Yangon",
+                  "value": "Asia/Yangon"
+                },
+                {
+                  "name": "Asia/Yekaterinburg",
+                  "value": "Asia/Yekaterinburg"
+                },
+                {
+                  "name": "Asia/Yerevan",
+                  "value": "Asia/Yerevan"
+                },
+                {
+                  "name": "Atlantic/Azores",
+                  "value": "Atlantic/Azores"
+                },
+                {
+                  "name": "Atlantic/Bermuda",
+                  "value": "Atlantic/Bermuda"
+                },
+                {
+                  "name": "Atlantic/Canary",
+                  "value": "Atlantic/Canary"
+                },
+                {
+                  "name": "Atlantic/Cape_Verde",
+                  "value": "Atlantic/Cape_Verde"
+                },
+                {
+                  "name": "Atlantic/Faeroe",
+                  "value": "Atlantic/Faeroe"
+                },
+                {
+                  "name": "Atlantic/Faroe",
+                  "value": "Atlantic/Faroe"
+                },
+                {
+                  "name": "Atlantic/Jan_Mayen",
+                  "value": "Atlantic/Jan_Mayen"
+                },
+                {
+                  "name": "Atlantic/Madeira",
+                  "value": "Atlantic/Madeira"
+                },
+                {
+                  "name": "Atlantic/Reykjavik",
+                  "value": "Atlantic/Reykjavik"
+                },
+                {
+                  "name": "Atlantic/South_Georgia",
+                  "value": "Atlantic/South_Georgia"
+                },
+                {
+                  "name": "Atlantic/St_Helena",
+                  "value": "Atlantic/St_Helena"
+                },
+                {
+                  "name": "Atlantic/Stanley",
+                  "value": "Atlantic/Stanley"
+                },
+                {
+                  "name": "Australia/ACT",
+                  "value": "Australia/ACT"
+                },
+                {
+                  "name": "Australia/Adelaide",
+                  "value": "Australia/Adelaide"
+                },
+                {
+                  "name": "Australia/Brisbane",
+                  "value": "Australia/Brisbane"
+                },
+                {
+                  "name": "Australia/Broken_Hill",
+                  "value": "Australia/Broken_Hill"
+                },
+                {
+                  "name": "Australia/Canberra",
+                  "value": "Australia/Canberra"
+                },
+                {
+                  "name": "Australia/Currie",
+                  "value": "Australia/Currie"
+                },
+                {
+                  "name": "Australia/Darwin",
+                  "value": "Australia/Darwin"
+                },
+                {
+                  "name": "Australia/Eucla",
+                  "value": "Australia/Eucla"
+                },
+                {
+                  "name": "Australia/Hobart",
+                  "value": "Australia/Hobart"
+                },
+                {
+                  "name": "Australia/LHI",
+                  "value": "Australia/LHI"
+                },
+                {
+                  "name": "Australia/Lindeman",
+                  "value": "Australia/Lindeman"
+                },
+                {
+                  "name": "Australia/Lord_Howe",
+                  "value": "Australia/Lord_Howe"
+                },
+                {
+                  "name": "Australia/Melbourne",
+                  "value": "Australia/Melbourne"
+                },
+                {
+                  "name": "Australia/NSW",
+                  "value": "Australia/NSW"
+                },
+                {
+                  "name": "Australia/North",
+                  "value": "Australia/North"
+                },
+                {
+                  "name": "Australia/Perth",
+                  "value": "Australia/Perth"
+                },
+                {
+                  "name": "Australia/Queensland",
+                  "value": "Australia/Queensland"
+                },
+                {
+                  "name": "Australia/South",
+                  "value": "Australia/South"
+                },
+                {
+                  "name": "Australia/Sydney",
+                  "value": "Australia/Sydney"
+                },
+                {
+                  "name": "Australia/Tasmania",
+                  "value": "Australia/Tasmania"
+                },
+                {
+                  "name": "Australia/Victoria",
+                  "value": "Australia/Victoria"
+                },
+                {
+                  "name": "Australia/West",
+                  "value": "Australia/West"
+                },
+                {
+                  "name": "Australia/Yancowinna",
+                  "value": "Australia/Yancowinna"
+                },
+                {
+                  "name": "Brazil/Acre",
+                  "value": "Brazil/Acre"
+                },
+                {
+                  "name": "Brazil/DeNoronha",
+                  "value": "Brazil/DeNoronha"
+                },
+                {
+                  "name": "Brazil/East",
+                  "value": "Brazil/East"
+                },
+                {
+                  "name": "Brazil/West",
+                  "value": "Brazil/West"
+                },
+                {
+                  "name": "CET",
+                  "value": "CET"
+                },
+                {
+                  "name": "CST6CDT",
+                  "value": "CST6CDT"
+                },
+                {
+                  "name": "Canada/Atlantic",
+                  "value": "Canada/Atlantic"
+                },
+                {
+                  "name": "Canada/Central",
+                  "value": "Canada/Central"
+                },
+                {
+                  "name": "Canada/Eastern",
+                  "value": "Canada/Eastern"
+                },
+                {
+                  "name": "Canada/Mountain",
+                  "value": "Canada/Mountain"
+                },
+                {
+                  "name": "Canada/Newfoundland",
+                  "value": "Canada/Newfoundland"
+                },
+                {
+                  "name": "Canada/Pacific",
+                  "value": "Canada/Pacific"
+                },
+                {
+                  "name": "Canada/Saskatchewan",
+                  "value": "Canada/Saskatchewan"
+                },
+                {
+                  "name": "Canada/Yukon",
+                  "value": "Canada/Yukon"
+                },
+                {
+                  "name": "Chile/Continental",
+                  "value": "Chile/Continental"
+                },
+                {
+                  "name": "Chile/EasterIsland",
+                  "value": "Chile/EasterIsland"
+                },
+                {
+                  "name": "Cuba",
+                  "value": "Cuba"
+                },
+                {
+                  "name": "EET",
+                  "value": "EET"
+                },
+                {
+                  "name": "EST",
+                  "value": "EST"
+                },
+                {
+                  "name": "EST5EDT",
+                  "value": "EST5EDT"
+                },
+                {
+                  "name": "Egypt",
+                  "value": "Egypt"
+                },
+                {
+                  "name": "Eire",
+                  "value": "Eire"
+                },
+                {
+                  "name": "Europe/Amsterdam",
+                  "value": "Europe/Amsterdam"
+                },
+                {
+                  "name": "Europe/Andorra",
+                  "value": "Europe/Andorra"
+                },
+                {
+                  "name": "Europe/Astrakhan",
+                  "value": "Europe/Astrakhan"
+                },
+                {
+                  "name": "Europe/Athens",
+                  "value": "Europe/Athens"
+                },
+                {
+                  "name": "Europe/Belfast",
+                  "value": "Europe/Belfast"
+                },
+                {
+                  "name": "Europe/Belgrade",
+                  "value": "Europe/Belgrade"
+                },
+                {
+                  "name": "Europe/Berlin",
+                  "value": "Europe/Berlin"
+                },
+                {
+                  "name": "Europe/Bratislava",
+                  "value": "Europe/Bratislava"
+                },
+                {
+                  "name": "Europe/Brussels",
+                  "value": "Europe/Brussels"
+                },
+                {
+                  "name": "Europe/Bucharest",
+                  "value": "Europe/Bucharest"
+                },
+                {
+                  "name": "Europe/Budapest",
+                  "value": "Europe/Budapest"
+                },
+                {
+                  "name": "Europe/Busingen",
+                  "value": "Europe/Busingen"
+                },
+                {
+                  "name": "Europe/Chisinau",
+                  "value": "Europe/Chisinau"
+                },
+                {
+                  "name": "Europe/Copenhagen",
+                  "value": "Europe/Copenhagen"
+                },
+                {
+                  "name": "Europe/Dublin",
+                  "value": "Europe/Dublin"
+                },
+                {
+                  "name": "Europe/Gibraltar",
+                  "value": "Europe/Gibraltar"
+                },
+                {
+                  "name": "Europe/Guernsey",
+                  "value": "Europe/Guernsey"
+                },
+                {
+                  "name": "Europe/Helsinki",
+                  "value": "Europe/Helsinki"
+                },
+                {
+                  "name": "Europe/Isle_of_Man",
+                  "value": "Europe/Isle_of_Man"
+                },
+                {
+                  "name": "Europe/Istanbul",
+                  "value": "Europe/Istanbul"
+                },
+                {
+                  "name": "Europe/Jersey",
+                  "value": "Europe/Jersey"
+                },
+                {
+                  "name": "Europe/Kaliningrad",
+                  "value": "Europe/Kaliningrad"
+                },
+                {
+                  "name": "Europe/Kiev",
+                  "value": "Europe/Kiev"
+                },
+                {
+                  "name": "Europe/Kirov",
+                  "value": "Europe/Kirov"
+                },
+                {
+                  "name": "Europe/Kyiv",
+                  "value": "Europe/Kyiv"
+                },
+                {
+                  "name": "Europe/Lisbon",
+                  "value": "Europe/Lisbon"
+                },
+                {
+                  "name": "Europe/Ljubljana",
+                  "value": "Europe/Ljubljana"
+                },
+                {
+                  "name": "Europe/London",
+                  "value": "Europe/London"
+                },
+                {
+                  "name": "Europe/Luxembourg",
+                  "value": "Europe/Luxembourg"
+                },
+                {
+                  "name": "Europe/Madrid",
+                  "value": "Europe/Madrid"
+                },
+                {
+                  "name": "Europe/Malta",
+                  "value": "Europe/Malta"
+                },
+                {
+                  "name": "Europe/Mariehamn",
+                  "value": "Europe/Mariehamn"
+                },
+                {
+                  "name": "Europe/Minsk",
+                  "value": "Europe/Minsk"
+                },
+                {
+                  "name": "Europe/Monaco",
+                  "value": "Europe/Monaco"
+                },
+                {
+                  "name": "Europe/Moscow",
+                  "value": "Europe/Moscow"
+                },
+                {
+                  "name": "Europe/Nicosia",
+                  "value": "Europe/Nicosia"
+                },
+                {
+                  "name": "Europe/Oslo",
+                  "value": "Europe/Oslo"
+                },
+                {
+                  "name": "Europe/Paris",
+                  "value": "Europe/Paris"
+                },
+                {
+                  "name": "Europe/Podgorica",
+                  "value": "Europe/Podgorica"
+                },
+                {
+                  "name": "Europe/Prague",
+                  "value": "Europe/Prague"
+                },
+                {
+                  "name": "Europe/Riga",
+                  "value": "Europe/Riga"
+                },
+                {
+                  "name": "Europe/Rome",
+                  "value": "Europe/Rome"
+                },
+                {
+                  "name": "Europe/Samara",
+                  "value": "Europe/Samara"
+                },
+                {
+                  "name": "Europe/San_Marino",
+                  "value": "Europe/San_Marino"
+                },
+                {
+                  "name": "Europe/Sarajevo",
+                  "value": "Europe/Sarajevo"
+                },
+                {
+                  "name": "Europe/Saratov",
+                  "value": "Europe/Saratov"
+                },
+                {
+                  "name": "Europe/Simferopol",
+                  "value": "Europe/Simferopol"
+                },
+                {
+                  "name": "Europe/Skopje",
+                  "value": "Europe/Skopje"
+                },
+                {
+                  "name": "Europe/Sofia",
+                  "value": "Europe/Sofia"
+                },
+                {
+                  "name": "Europe/Stockholm",
+                  "value": "Europe/Stockholm"
+                },
+                {
+                  "name": "Europe/Tallinn",
+                  "value": "Europe/Tallinn"
+                },
+                {
+                  "name": "Europe/Tirane",
+                  "value": "Europe/Tirane"
+                },
+                {
+                  "name": "Europe/Tiraspol",
+                  "value": "Europe/Tiraspol"
+                },
+                {
+                  "name": "Europe/Ulyanovsk",
+                  "value": "Europe/Ulyanovsk"
+                },
+                {
+                  "name": "Europe/Uzhgorod",
+                  "value": "Europe/Uzhgorod"
+                },
+                {
+                  "name": "Europe/Vaduz",
+                  "value": "Europe/Vaduz"
+                },
+                {
+                  "name": "Europe/Vatican",
+                  "value": "Europe/Vatican"
+                },
+                {
+                  "name": "Europe/Vienna",
+                  "value": "Europe/Vienna"
+                },
+                {
+                  "name": "Europe/Vilnius",
+                  "value": "Europe/Vilnius"
+                },
+                {
+                  "name": "Europe/Volgograd",
+                  "value": "Europe/Volgograd"
+                },
+                {
+                  "name": "Europe/Warsaw",
+                  "value": "Europe/Warsaw"
+                },
+                {
+                  "name": "Europe/Zagreb",
+                  "value": "Europe/Zagreb"
+                },
+                {
+                  "name": "Europe/Zaporozhye",
+                  "value": "Europe/Zaporozhye"
+                },
+                {
+                  "name": "Europe/Zurich",
+                  "value": "Europe/Zurich"
+                },
+                {
+                  "name": "GB",
+                  "value": "GB"
+                },
+                {
+                  "name": "GB-Eire",
+                  "value": "GB-Eire"
+                },
+                {
+                  "name": "GMT",
+                  "value": "GMT"
+                },
+                {
+                  "name": "GMT+0",
+                  "value": "GMT+0"
+                },
+                {
+                  "name": "GMT-0",
+                  "value": "GMT-0"
+                },
+                {
+                  "name": "GMT0",
+                  "value": "GMT0"
+                },
+                {
+                  "name": "Greenwich",
+                  "value": "Greenwich"
+                },
+                {
+                  "name": "HST",
+                  "value": "HST"
+                },
+                {
+                  "name": "Hongkong",
+                  "value": "Hongkong"
+                },
+                {
+                  "name": "Iceland",
+                  "value": "Iceland"
+                },
+                {
+                  "name": "Indian/Antananarivo",
+                  "value": "Indian/Antananarivo"
+                },
+                {
+                  "name": "Indian/Chagos",
+                  "value": "Indian/Chagos"
+                },
+                {
+                  "name": "Indian/Christmas",
+                  "value": "Indian/Christmas"
+                },
+                {
+                  "name": "Indian/Cocos",
+                  "value": "Indian/Cocos"
+                },
+                {
+                  "name": "Indian/Comoro",
+                  "value": "Indian/Comoro"
+                },
+                {
+                  "name": "Indian/Kerguelen",
+                  "value": "Indian/Kerguelen"
+                },
+                {
+                  "name": "Indian/Mahe",
+                  "value": "Indian/Mahe"
+                },
+                {
+                  "name": "Indian/Maldives",
+                  "value": "Indian/Maldives"
+                },
+                {
+                  "name": "Indian/Mauritius",
+                  "value": "Indian/Mauritius"
+                },
+                {
+                  "name": "Indian/Mayotte",
+                  "value": "Indian/Mayotte"
+                },
+                {
+                  "name": "Indian/Reunion",
+                  "value": "Indian/Reunion"
+                },
+                {
+                  "name": "Iran",
+                  "value": "Iran"
+                },
+                {
+                  "name": "Israel",
+                  "value": "Israel"
+                },
+                {
+                  "name": "Jamaica",
+                  "value": "Jamaica"
+                },
+                {
+                  "name": "Japan",
+                  "value": "Japan"
+                },
+                {
+                  "name": "Kwajalein",
+                  "value": "Kwajalein"
+                },
+                {
+                  "name": "Libya",
+                  "value": "Libya"
+                },
+                {
+                  "name": "MET",
+                  "value": "MET"
+                },
+                {
+                  "name": "MST",
+                  "value": "MST"
+                },
+                {
+                  "name": "MST7MDT",
+                  "value": "MST7MDT"
+                },
+                {
+                  "name": "Mexico/BajaNorte",
+                  "value": "Mexico/BajaNorte"
+                },
+                {
+                  "name": "Mexico/BajaSur",
+                  "value": "Mexico/BajaSur"
+                },
+                {
+                  "name": "Mexico/General",
+                  "value": "Mexico/General"
+                },
+                {
+                  "name": "NZ",
+                  "value": "NZ"
+                },
+                {
+                  "name": "NZ-CHAT",
+                  "value": "NZ-CHAT"
+                },
+                {
+                  "name": "Navajo",
+                  "value": "Navajo"
+                },
+                {
+                  "name": "PRC",
+                  "value": "PRC"
+                },
+                {
+                  "name": "PST8PDT",
+                  "value": "PST8PDT"
+                },
+                {
+                  "name": "Pacific/Apia",
+                  "value": "Pacific/Apia"
+                },
+                {
+                  "name": "Pacific/Auckland",
+                  "value": "Pacific/Auckland"
+                },
+                {
+                  "name": "Pacific/Bougainville",
+                  "value": "Pacific/Bougainville"
+                },
+                {
+                  "name": "Pacific/Chatham",
+                  "value": "Pacific/Chatham"
+                },
+                {
+                  "name": "Pacific/Chuuk",
+                  "value": "Pacific/Chuuk"
+                },
+                {
+                  "name": "Pacific/Easter",
+                  "value": "Pacific/Easter"
+                },
+                {
+                  "name": "Pacific/Efate",
+                  "value": "Pacific/Efate"
+                },
+                {
+                  "name": "Pacific/Enderbury",
+                  "value": "Pacific/Enderbury"
+                },
+                {
+                  "name": "Pacific/Fakaofo",
+                  "value": "Pacific/Fakaofo"
+                },
+                {
+                  "name": "Pacific/Fiji",
+                  "value": "Pacific/Fiji"
+                },
+                {
+                  "name": "Pacific/Funafuti",
+                  "value": "Pacific/Funafuti"
+                },
+                {
+                  "name": "Pacific/Galapagos",
+                  "value": "Pacific/Galapagos"
+                },
+                {
+                  "name": "Pacific/Gambier",
+                  "value": "Pacific/Gambier"
+                },
+                {
+                  "name": "Pacific/Guadalcanal",
+                  "value": "Pacific/Guadalcanal"
+                },
+                {
+                  "name": "Pacific/Guam",
+                  "value": "Pacific/Guam"
+                },
+                {
+                  "name": "Pacific/Honolulu",
+                  "value": "Pacific/Honolulu"
+                },
+                {
+                  "name": "Pacific/Johnston",
+                  "value": "Pacific/Johnston"
+                },
+                {
+                  "name": "Pacific/Kanton",
+                  "value": "Pacific/Kanton"
+                },
+                {
+                  "name": "Pacific/Kiritimati",
+                  "value": "Pacific/Kiritimati"
+                },
+                {
+                  "name": "Pacific/Kosrae",
+                  "value": "Pacific/Kosrae"
+                },
+                {
+                  "name": "Pacific/Kwajalein",
+                  "value": "Pacific/Kwajalein"
+                },
+                {
+                  "name": "Pacific/Majuro",
+                  "value": "Pacific/Majuro"
+                },
+                {
+                  "name": "Pacific/Marquesas",
+                  "value": "Pacific/Marquesas"
+                },
+                {
+                  "name": "Pacific/Midway",
+                  "value": "Pacific/Midway"
+                },
+                {
+                  "name": "Pacific/Nauru",
+                  "value": "Pacific/Nauru"
+                },
+                {
+                  "name": "Pacific/Niue",
+                  "value": "Pacific/Niue"
+                },
+                {
+                  "name": "Pacific/Norfolk",
+                  "value": "Pacific/Norfolk"
+                },
+                {
+                  "name": "Pacific/Noumea",
+                  "value": "Pacific/Noumea"
+                },
+                {
+                  "name": "Pacific/Pago_Pago",
+                  "value": "Pacific/Pago_Pago"
+                },
+                {
+                  "name": "Pacific/Palau",
+                  "value": "Pacific/Palau"
+                },
+                {
+                  "name": "Pacific/Pitcairn",
+                  "value": "Pacific/Pitcairn"
+                },
+                {
+                  "name": "Pacific/Pohnpei",
+                  "value": "Pacific/Pohnpei"
+                },
+                {
+                  "name": "Pacific/Ponape",
+                  "value": "Pacific/Ponape"
+                },
+                {
+                  "name": "Pacific/Port_Moresby",
+                  "value": "Pacific/Port_Moresby"
+                },
+                {
+                  "name": "Pacific/Rarotonga",
+                  "value": "Pacific/Rarotonga"
+                },
+                {
+                  "name": "Pacific/Saipan",
+                  "value": "Pacific/Saipan"
+                },
+                {
+                  "name": "Pacific/Samoa",
+                  "value": "Pacific/Samoa"
+                },
+                {
+                  "name": "Pacific/Tahiti",
+                  "value": "Pacific/Tahiti"
+                },
+                {
+                  "name": "Pacific/Tarawa",
+                  "value": "Pacific/Tarawa"
+                },
+                {
+                  "name": "Pacific/Tongatapu",
+                  "value": "Pacific/Tongatapu"
+                },
+                {
+                  "name": "Pacific/Truk",
+                  "value": "Pacific/Truk"
+                },
+                {
+                  "name": "Pacific/Wake",
+                  "value": "Pacific/Wake"
+                },
+                {
+                  "name": "Pacific/Wallis",
+                  "value": "Pacific/Wallis"
+                },
+                {
+                  "name": "Pacific/Yap",
+                  "value": "Pacific/Yap"
+                },
+                {
+                  "name": "Poland",
+                  "value": "Poland"
+                },
+                {
+                  "name": "Portugal",
+                  "value": "Portugal"
+                },
+                {
+                  "name": "ROC",
+                  "value": "ROC"
+                },
+                {
+                  "name": "ROK",
+                  "value": "ROK"
+                },
+                {
+                  "name": "Singapore",
+                  "value": "Singapore"
+                },
+                {
+                  "name": "Turkey",
+                  "value": "Turkey"
+                },
+                {
+                  "name": "UCT",
+                  "value": "UCT"
+                },
+                {
+                  "name": "US/Alaska",
+                  "value": "US/Alaska"
+                },
+                {
+                  "name": "US/Aleutian",
+                  "value": "US/Aleutian"
+                },
+                {
+                  "name": "US/Arizona",
+                  "value": "US/Arizona"
+                },
+                {
+                  "name": "US/Central",
+                  "value": "US/Central"
+                },
+                {
+                  "name": "US/East-Indiana",
+                  "value": "US/East-Indiana"
+                },
+                {
+                  "name": "US/Eastern",
+                  "value": "US/Eastern"
+                },
+                {
+                  "name": "US/Hawaii",
+                  "value": "US/Hawaii"
+                },
+                {
+                  "name": "US/Indiana-Starke",
+                  "value": "US/Indiana-Starke"
+                },
+                {
+                  "name": "US/Michigan",
+                  "value": "US/Michigan"
+                },
+                {
+                  "name": "US/Mountain",
+                  "value": "US/Mountain"
+                },
+                {
+                  "name": "US/Pacific",
+                  "value": "US/Pacific"
+                },
+                {
+                  "name": "US/Samoa",
+                  "value": "US/Samoa"
+                },
+                {
+                  "name": "UTC",
+                  "value": "UTC"
+                },
+                {
+                  "name": "Universal",
+                  "value": "Universal"
+                },
+                {
+                  "name": "W-SU",
+                  "value": "W-SU"
+                },
+                {
+                  "name": "WET",
+                  "value": "WET"
+                },
+                {
+                  "name": "Zulu",
+                  "value": "Zulu"
+                },
+                {
+                  "name": "Etc/GMT-0",
+                  "value": "Etc/GMT-0"
+                },
+                {
+                  "name": "Etc/GMT-10",
+                  "value": "Etc/GMT-10"
+                },
+                {
+                  "name": "Etc/GMT+6",
+                  "value": "Etc/GMT+6"
+                },
+                {
+                  "name": "Etc/GMT-3",
+                  "value": "Etc/GMT-3"
+                },
+                {
+                  "name": "Etc/GMT-14",
+                  "value": "Etc/GMT-14"
+                },
+                {
+                  "name": "Etc/GMT+7",
+                  "value": "Etc/GMT+7"
+                },
+                {
+                  "name": "Etc/GMT-9",
+                  "value": "Etc/GMT-9"
+                },
+                {
+                  "name": "Etc/Zulu",
+                  "value": "Etc/Zulu"
+                },
+                {
+                  "name": "Etc/GMT-13",
+                  "value": "Etc/GMT-13"
+                },
+                {
+                  "name": "Etc/GMT+4",
+                  "value": "Etc/GMT+4"
+                },
+                {
+                  "name": "Etc/GMT-8",
+                  "value": "Etc/GMT-8"
+                },
+                {
+                  "name": "Etc/Universal",
+                  "value": "Etc/Universal"
+                },
+                {
+                  "name": "Etc/GMT",
+                  "value": "Etc/GMT"
+                },
+                {
+                  "name": "Etc/Greenwich",
+                  "value": "Etc/Greenwich"
+                },
+                {
+                  "name": "Etc/GMT+11",
+                  "value": "Etc/GMT+11"
+                },
+                {
+                  "name": "Etc/GMT+10",
+                  "value": "Etc/GMT+10"
+                },
+                {
+                  "name": "Etc/GMT-7",
+                  "value": "Etc/GMT-7"
+                },
+                {
+                  "name": "Etc/UCT",
+                  "value": "Etc/UCT"
+                },
+                {
+                  "name": "Etc/GMT+1",
+                  "value": "Etc/GMT+1"
+                },
+                {
+                  "name": "Etc/GMT-4",
+                  "value": "Etc/GMT-4"
+                },
+                {
+                  "name": "Etc/GMT0",
+                  "value": "Etc/GMT0"
+                },
+                {
+                  "name": "Etc/GMT-1",
+                  "value": "Etc/GMT-1"
+                },
+                {
+                  "name": "Etc/GMT-11",
+                  "value": "Etc/GMT-11"
+                },
+                {
+                  "name": "Etc/GMT-12",
+                  "value": "Etc/GMT-12"
+                },
+                {
+                  "name": "Etc/GMT+12",
+                  "value": "Etc/GMT+12"
+                },
+                {
+                  "name": "Etc/GMT+3",
+                  "value": "Etc/GMT+3"
+                },
+                {
+                  "name": "Etc/GMT+9",
+                  "value": "Etc/GMT+9"
+                },
+                {
+                  "name": "Etc/GMT-2",
+                  "value": "Etc/GMT-2"
+                },
+                {
+                  "name": "Etc/GMT+2",
+                  "value": "Etc/GMT+2"
+                },
+                {
+                  "name": "Etc/UTC",
+                  "value": "Etc/UTC"
+                },
+                {
+                  "name": "Etc/GMT+5",
+                  "value": "Etc/GMT+5"
+                },
+                {
+                  "name": "Etc/GMT+8",
+                  "value": "Etc/GMT+8"
+                },
+                {
+                  "name": "Etc/GMT-5",
+                  "value": "Etc/GMT-5"
+                },
+                {
+                  "name": "Etc/GMT-6",
+                  "value": "Etc/GMT-6"
+                },
+                {
+                  "name": "Etc/GMT+0",
+                  "value": "Etc/GMT+0"
+                }
+              ]
+            },
+            {
+              "id": "tz_offset",
+              "displayName": "Timezone offset",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "string"
+            },
+            {
+              "id": "total_all_due",
+              "displayName": "Total All Due",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_all_due_abs",
+              "displayName": "Total All Due Abs",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_all_overdue",
+              "displayName": "Total All Overdue",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_due",
+              "displayName": "Total Due",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_invoiced",
+              "displayName": "Total Invoiced",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_overdue",
+              "displayName": "Total Overdue",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_overdue_currency_followup",
+              "displayName": "Total Overdue Currency Followup",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "total_overdue_followup",
+              "displayName": "Total Overdue Followup",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "debit",
+              "displayName": "Total Payable",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "credit",
+              "displayName": "Total Receivable",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "unpaid_invoice_ids",
+              "displayName": "Unpaid Invoice",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "unpaid_invoices_count",
+              "displayName": "Unpaid Invoices Count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "number"
+            },
+            {
+              "id": "unreconciled_aml_ids",
+              "displayName": "Unreconciled Aml",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "user_ids",
+              "displayName": "Users",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "vat",
+              "displayName": "VAT",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "property_supplier_payment_term_id",
+              "displayName": "Vendor Payment Terms",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "website",
+              "displayName": "Website Link",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            },
+            {
+              "id": "website_message_ids",
+              "displayName": "Website Messages",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": false,
+              "removed": false,
+              "type": "array"
+            },
+            {
+              "id": "zip",
+              "displayName": "Zip",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "removed": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "n8n-nodes-base.odoo",
+      "typeVersion": 2,
+      "position": [
+        -2448,
+        -688
+      ],
+      "id": "9773ecfb-3d7b-44f4-bb15-a0ee94e9bcca",
+      "name": "Crear contacto",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "odooApi": {
+          "id": "YI5Tu5VymKfefkQA",
+          "name": "Odoo account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('¿Contacto existe?').first().json;\nlet pid = d.partner_id;\nif (!pid) {\n  // vino de crear\n  try { pid = $('Crear contacto').first().json.id; } catch(e) { pid = null; }\n}\nreturn [{ json: { partner_id: pid, lead_id: d.lead_id, nombre: d.nombre, nombre_lead: d.nombre_lead } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2256,
+        -752
+      ],
+      "id": "55def802-7956-4425-bb22-2c4b80580e23",
+      "name": "Partner id final"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-selfa.trazabis.com/webhook/v6/geocodificar-cp",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ cp: $json.cp_cliente, calle: $json.direccion_cliente, lead_id: $json.lead_id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "geocode-inject-001",
+      "name": "Geocodificar CP (auto)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3440,
+        -1008
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El resumen \"Estos son tus datos / Editar-Continuar-Cancelar\" solo tiene sentido en captacion.\n// Si el lead ya avanzo (medicion, presupuesto...) NO se envia: evita el mensaje doble y que \"Continuar\" relance el onboarding.\nconst tel = String($('Guardar datos').first().json.telefono || '').replace(/[^0-9]/g,'');\nlet enCaptacion = true, etapa = null;\nglobalThis.__L = null; // no arrastrar el lead de otra ejecución\ntry {\n  const r = await this.helpers.httpRequest({ method:'POST', url:'https://selfa2.odoo.com/jsonrpc', json:true,\n    headers:{'Content-Type':'application/json'},\n    body:{ jsonrpc:'2.0', method:'call', id:1, params:{ service:'object', method:'execute_kw',\n      args:['selfa2',2,'17bfcdc987742e11fe6a5eaacd36d25da2174e11','crm.lead','search_read',\n        [['|',['phone','like',tel.slice(-9)],['phone_sanitized','like',tel.slice(-9)],['active','=',true]]], { fields:['id','stage_id','street','zip','city','partner_id','contact_name','name','phone'], limit:1, order:'id desc' }] } } });\n  const L = (r.result||[])[0];\n  if (L && L.stage_id) { etapa = L.stage_id[0]; enCaptacion = [1,28].includes(etapa); }\n  globalThis.__L = L;\n} catch(e) {}\n// Etapa 19 (Medición · Pdte. de Pago): con la dirección ya guardada, calcular el precio, crear/actualizar la orden de medición\n// y decirle al agente que le dé el precio y le pida el pago (NO preguntar horario todavía: eso va tras validar el pago).\nlet respuesta_med = '';\ntry {\n  const L = globalThis.__L;\n  if (etapa === 19 && L && (L.street||'').trim() && (L.zip||'').trim()) {\n    const ODOO=['selfa2',2,'17bfcdc987742e11fe6a5eaacd36d25da2174e11'];\n    const odoo=async(m,me,a,kw)=>{const r=await this.helpers.httpRequest({method:'POST',url:'https://selfa2.odoo.com/jsonrpc',json:true,headers:{'Content-Type':'application/json'},body:{jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',args:[...ODOO,m,me,a,kw||{}]}}});if(r.error)throw new Error(JSON.stringify(r.error));return r.result;};\n    const calle=String(L.street).split('\\u2014')[0].trim().replace(/,\\s*$/,'');\n    const g=await this.helpers.httpRequest({method:'POST',url:'https://n8n-selfa.trazabis.com/webhook/v6/geocodificar-cp',json:true,timeout:15000,headers:{'Content-Type':'application/json'},body:{cp:String(L.zip).trim(),calle}});\n    if (g && g.success && g.total != null) {\n      const total=Number(g.total), totalStr=total.toFixed(2).replace('.',',')+' €';\n      const despl=Number(g.desplazamiento)||0, km=Math.round(Number(g.km_ida_vuelta)||0);\n      const os=await odoo('sale.order','search_read',[[['opportunity_id','=',L.id],['origin','=','MEDICION_V6']]],{fields:['id','order_line'],limit:1});\n      let oid=null;\n      if (os.length) { oid=os[0].id; if (os[0].order_line&&os[0].order_line.length) await odoo('sale.order.line','unlink',[os[0].order_line]); }\n      else { let pid=L.partner_id?L.partner_id[0]:null; if(!pid) pid=await odoo('res.partner','create',[{name:L.contact_name||L.name||'Cliente',phone:L.phone||'',street:L.street||'',zip:L.zip||'',city:L.city||''}]);\n             oid=await odoo('sale.order','create',[{partner_id:pid,opportunity_id:L.id,origin:'MEDICION_V6',state:'draft'}]); }\n      await odoo('sale.order.line','create',[{order_id:oid,product_id:15,name:'Visita de medicion profesional',product_uom_qty:1,price_unit:50}]);\n      if (despl>0) await odoo('sale.order.line','create',[{order_id:oid,product_id:15,name:'Desplazamiento ('+km+' km ida y vuelta)',product_uom_qty:1,price_unit:despl}]);\n      const dir=calle+(L.zip&&!calle.includes(L.zip)?', '+L.zip:'')+(L.city&&!calle.toLowerCase().includes(String(L.city).toLowerCase())?' '+L.city:'');\n      try { await odoo('crm.lead','message_post',[[L.id]],{body:'<p>📨 Aviso de pago de medición enviado al cliente por WhatsApp (tras darnos la dirección · '+totalStr+').</p>',message_type:'comment',subtype_xmlid:'mail.mt_note',body_is_html:true}); } catch(e) {}\n      respuesta_med = 'Datos guardados y precio calculado. Responde al cliente (sin escribir LISTO) con este contenido, en un tono natural: '\n        + 'la visita de medición en ' + dir + ' tiene un coste de *' + totalStr + '* (incluye desplazamiento e IVA); para reservarla debe realizar el pago y enviarnos el justificante por aquí, y en cuanto lo recibamos coordinamos el día y la hora. '\n        + 'NO le preguntes todavía por horario diurno o de tarde ni ofrezcas fechas.';\n    } else {\n      respuesta_med = 'Datos guardados, pero no se pudo calcular el precio de la medición con esa dirección. Dile que lo revisamos y le confirmamos el coste en breve, y llama a derivar_consulta (ventas) con asunto «Medición: no se pudo calcular el precio» y la dirección que dio.';\n    }\n  }\n} catch (e) {}\nreturn [{ json: { ...$input.first().json, en_captacion: enCaptacion, etapa_lead: etapa, respuesta_med }, pairedItem: { item: 0 } }];"
+      },
+      "id": "etapaLead01",
+      "name": "Etapa lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2096,
+        -592
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.en_captacion }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "enCapt01",
+      "name": "¿En captación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1872,
+        -592
+      ]
+    }
+  ],
+  "pinData": {
+    "Entrada": [
+      {
+        "json": {
+          "cliente_id": "CO.1049297447925983",
+          "telefono": "573164749242",
+          "nombre": "Alexander Rodriguez",
+          "cp": "46600",
+          "direccion": "avenida siempre viva calle 15",
+          "tipo_cliente": "particular"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Leer estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer estado": {
+      "main": [
+        [
+          {
+            "node": "Limpiar cp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar cp": {
+      "main": [
+        [
+          {
+            "node": "Call 'Validar CP'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar datos": {
+      "main": [
+        [
+          {
+            "node": "Geocodificar CP (auto)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar estado": {
+      "main": [
+        [
+          {
+            "node": "¿Completo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Completo?": {
+      "main": [
+        [
+          {
+            "node": "Buscar contacto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta faltan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aviso cierre": {
+      "main": [
+        [
+          {
+            "node": "Respuesta OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Validar CP'": {
+      "main": [
+        [
+          {
+            "node": "Guardar datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar nombre lead": {
+      "main": [
+        [
+          {
+            "node": "Etapa lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar contacto": {
+      "main": [
+        [
+          {
+            "node": "¿Contacto existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Contacto existe?": {
+      "main": [
+        [
+          {
+            "node": "¿Existe partner?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Existe partner?": {
+      "main": [
+        [
+          {
+            "node": "Partner id final",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear contacto": {
+      "main": [
+        [
+          {
+            "node": "Partner id final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Partner id final": {
+      "main": [
+        [
+          {
+            "node": "Actualizar nombre lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Etapa lead": {
+      "main": [
+        [
+          {
+            "node": "¿En captación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿En captación?": {
+      "main": [
+        [
+          {
+            "node": "Aviso cierre",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f031b19c-ff88-4461-8d1f-898ff9360b53",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c6064df44f206a9597b09f754ddf4d882601d8119d97c557f55606a86df4b872"
+  },
+  "nodeGroups": [],
+  "id": "Tp0dFylFoxrJ0Bbs",
+  "tags": []
+}
